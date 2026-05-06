@@ -1,53 +1,79 @@
 # ⚙️ Khepri Orchestrator
 
-![Java](https://img.shields.io/badge/Java-17-ED8B00?style=for-the-badge&logo=java&logoColor=white)
-![Apache OFBiz](https://img.shields.io/badge/Apache_OFBiz-24.09-D22128?style=for-the-badge&logo=apache&logoColor=white)
-![Architecture](https://img.shields.io/badge/Architecture-BFF%20%2F%20Gateway-007396?style=for-the-badge)
+O **Khepri Orchestrator** é um plugin customizado para o **Apache OFBiz (v24.09)** desenvolvido para assumir o controle das operações da **Oficina Mecânica Tuaregue**, localizada em Atibaia-SP.
 
-O **Khepri Orchestrator** é o motor de integração e Backend For Frontend (BFF) desenvolvido para modernizar e assumir o controle total das operações da **Oficina Mecânica Tuaregue**. 
-
-Ele atua como a ponte inteligente entre interfaces de usuário ágeis e o robusto motor de ERP do Apache OFBiz, garantindo que a complexidade industrial do back-end seja traduzida em fluidez e eficiência no chão de fábrica.
+O objetivo do Khepri não é recriar o ERP, mas atuar como uma **camada de orquestração interna** que simplifica as regras do OFBiz para a realidade do "chão de oficina". Ele consolida dezenas de telas, cliques e serviços fragmentados do sistema base em fluxos ágeis, seguros e voltados para o dia a dia mecânico.
 
 ---
 
-## 📖 O Projeto (Metodologia STAR)
+## 🚨 O Problema: OFBiz "Puro" vs. Realidade da Oficina
 
-### 🚨 Situação (Situation)
-A **Oficina Tuaregue** (localizada em Atibaia-SP) enfrentava um gargalo operacional grave. A empresa dependia de um sistema SaaS (Software as a Service) genérico e online que apresentava três problemas críticos:
-1. **Alto Custo:** Mensalidades caras que não se justificavam pelo valor entregue.
-2. **Engessamento Operacional:** O sistema era genérico, com usabilidade ruim e não se adaptava ao fluxo real da oficina (diagnósticos, aditivos de orçamento, gestão de pátio).
-3. **Suporte Ineficiente:** Qualquer dúvida ou necessidade de adaptação esbarrava em um atendimento demorado e ineficaz por parte do fornecedor.
+O Apache OFBiz é um ERP industrial poderoso, mas seu uso direto (Out-of-the-Box) gerou atritos operacionais graves na Tuaregue:
 
-### 🎯 Tarefa (Task)
-Criar uma solução tecnológica **proprietária, local e altamente responsiva** que eliminasse a dependência do SaaS de terceiros. O sistema precisava ser desenhado "sob medida" (tailor-made) para o fluxo da oficina, garantindo excelência desde a recepção do cliente até o faturamento, com controle milimétrico do inventário de peças e do tempo dos mecânicos.
+* **Burocracia na Recepção:** Cadastrar um cliente e seu veículo exige passar por telas de `Party`, `ContactMech`, `PostalAddress` e `FixedAsset`. Um processo que deveria levar 30 segundos levava minutos.
+* **Execução sem Garantia Física:** O sistema padrão permitia que o mecânico iniciasse um serviço (`WorkEffort`) mesmo se a peça não estivesse fisicamente reservada (`InventoryItem`), causando paradas na oficina.
+* **Orçamentos Flexíveis Demais:** Ausência de travas rígidas; era possível adulterar ordens de serviço em andamento sem gerar um "Aditivo de Orçamento" formal.
+* **Fuga de Receita:** Veículos podiam ser sinalizados como "Prontos" e liberados fisicamente sem que a fatura (`Invoice`) estivesse 100% paga ou com as peças não faturadas corretamente.
 
-### ⚡ Ação (Action)
-Em vez de reinventar a roda construindo um ERP do zero, adotamos o framework open-source **Apache OFBiz (v24.09)** como motor de retaguarda (contabilidade, regras de estoque, entidades). 
-Para resolver o problema de usabilidade e integração, desenvolvemos o **Khepri Orchestrator**. Este componente atua como um BFF/API Gateway que:
-* Encapsula os serviços complexos do OFBiz (XML, Groovy, Entity Engine).
-* Expõe APIs RESTful modernas, limpas e documentadas para o Front-end.
-* Orquestra fluxos transacionais pesados (ex: aprovar orçamento, baixar estoque e gerar fatura) em chamadas únicas e resilientes.
+---
 
-### ✨ Resultado (Result)
-* **Autonomia e Economia:** Eliminação da assinatura mensal do software anterior, transformando despesa recorrente em ativo tecnológico próprio (CAPEX).
-* **Fluxo Otimizado:** Operadores e mecânicos utilizam interfaces desenhadas para o processo exato da Tuaregue, sem cliques desnecessários ou jargões contábeis.
-* **Suporte Imediato:** Sendo um sistema *in-house*, correções e novas regras de negócio são implementadas e validadas diretamente com os donos, sem SLAs de terceiros.
+## 🛠️ A Solução: O que o Khepri FAZ de verdade
+
+O Khepri atua como o maestro do OFBiz. Ele intercepta as intenções do usuário final (via UI customizada ou API) e orquestra as regras de negócio internamente:
+
+* **Cadastro Atômico (One-Click):** Cria `Party`, `PartyRole` e vincula o `FixedAsset` (Veículo) em uma única transação de serviço (`createTuaregueCustomerProfile`).
+* **Trava de Estoque:** O Khepri não permite que uma Ordem de Serviço mude para "Em Execução" se a query de `OrderItemShipGrpInvRes` (Reserva de Estoque) não bater 100% com a necessidade da OS.
+* **Controle de Aditivos:** Se um problema novo for encontrado durante a desmontagem, o Khepri trava a OS principal e força a criação de uma `Quote` (Aditivo). O serviço só volta a andar quando o aditivo vira `ORDER_APPROVED`.
+* **Gate Pass (Bloqueio Financeiro):** A rotina de finalização da OS consulta o `AcctgTrans` e a `Invoice`. Se o status não for `PMNT_RECEIVED`, o botão de liberação do veículo é desabilitado na interface do recepcionista.
 
 ---
 
 ## 🏗️ Arquitetura
 
-O Khepri atua no padrão **Backend For Frontend (BFF)**. Ele não possui banco de dados próprio para regras de negócio; sua função é a orquestração.
-```text
-[ Front-end (Web/Mobile) ]
-          │
-          ▼ (JSON / REST)
- ┌─────────────────────────┐
- │  KHEPRI ORCHESTRATOR    │ ◄ (Validação, Orquestração, Tratamento de Exceções)
- └────────┬────────┬───────┘
-          │        │ (XML-RPC / RMI / Direct Java)
-          ▼        ▼
- ┌─────────────────────────┐
- │     APACHE OFBIZ        │ ◄ (Entity Engine, Service Engine, Contabilidade)
- │  (Tuaregue ERP Core)    │
- └─────────────────────────┘
+O Khepri é um **Plugin Nativo** dentro do ecosistema Apache OFBiz. 
+
+Ele não é uma aplicação separada rodando Spring Boot. Ele utiliza o `Service Engine`, `Entity Engine` e `Event Handlers` nativos do OFBiz para garantir que todas as transações operem no mesmo banco de dados e respeitem a contabilidade do ERP.
+
+* **Linguagem Base:** Java 17 e Groovy (para Services e Scripts).
+* **Integração Front-end:** Exposição de endpoints dedicados via `controller.xml` do plugin, retornando views customizadas ou payloads JSON.
+* **Regras de Negócio:** Concentradas em SECAs (Service Entity Condition Actions) customizadas no arquivo `secas.xml` do Khepri.
+
+---
+
+## 🚦 Status do Projeto
+
+- [x] Estrutura base do plugin criada no OFBiz (`hot-deploy/khepri`).
+- [ ] Orquestração da Recepção (Cadastro de Cliente + Veículo).
+- [ ] Implementação da Trava de Estoque (Validação pré-execução).
+- [ ] Fluxo de Aditivo de Orçamento.
+- [ ] Validação de Pagamento vs. Liberação (Gate Pass).
+
+---
+
+## 💻 Como Rodar (Desenvolvimento)
+
+O Khepri depende de uma instância funcional do Apache OFBiz.
+
+1. **Clone o repositório** dentro da pasta `hot-deploy` (ou `plugins`) do seu OFBiz:
+   ```bash
+   cd /caminho-do-ofbiz/plugins
+   git clone [https://github.com/seu-usuario/khepri-orchestrator.git](https://github.com/seu-usuario/khepri-orchestrator.git) khepri
+   ```
+
+2. **Carregue os dados semente (Seed Data)** do Khepri (Roles, Tipos de Serviço específicos da Tuaregue):
+   ```bash
+   cd /caminho-do-ofbiz
+   ./gradlew "ofbiz --load-data readers=seed,seed-initial component=khepri"
+   ```
+
+3. **Inicie o OFBiz:**
+   ```bash
+   ./gradlew ofbiz
+   ```
+
+4. **Acesse o plugin:**
+
+
+
+
+```
