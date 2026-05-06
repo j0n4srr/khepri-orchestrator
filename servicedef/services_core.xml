@@ -2,4 +2,13 @@
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="https://ofbiz.apache.org/dtds/services.xsd">
     <description>Khepri Orchestrator Core Services (Atomic)</description>
+    <service name="khepriVerifyPartsAvailability"
+             engine="java"
+             location="tuaregue.khepri.orchestrator.core.inventory.KhepriInventoryServices"
+             invoke="verifyPartsAvailability"
+             auth="true">
+        <description>Verifica se todas as peças da OS estão fisicamente reservadas</description>
+        <attribute name="orderId" type="String" mode="IN" optional="false"/>
+        <attribute name="allPartsReserved" type="Boolean" mode="OUT" optional="false"/>
+    </service>
 </services>
