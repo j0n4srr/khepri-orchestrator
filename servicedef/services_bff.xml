@@ -2,4 +2,7 @@
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="https://ofbiz.apache.org/dtds/services.xsd">
     <description>Khepri Orchestrator BFF Services (Orchestration)</description>
+    <service name="khepriBffDummy" engine="interface" location="" invoke="">
+        <description>Dummy service to keep XML valid</description>
+    </service>
 </services>
