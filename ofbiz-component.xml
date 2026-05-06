@@ -36,6 +36,9 @@ under the License.
 
     <!-- service resources: model(s), eca(s) and group definitions -->
     <service-resource type="model" loader="main" location="servicedef/services.xml"/>
+    <service-resource type="model" loader="main" location="servicedef/services_bff.xml"/>
+    <service-resource type="model" loader="main" location="servicedef/services_core.xml"/>
+
     <!--
     <service-resource type="eca" loader="main" location="servicedef/secas.xml"/>
     <service-resource type="group" loader="main" location="servicedef/groups.xml"/>
@@ -48,6 +51,6 @@ under the License.
         title="Khepri-orchestrator"
         server="default-server"
         location="webapp/khepri-orchestrator"
-        base-permission="OFBTOOLS,KHEPRI-ORCHESTRATOR"
+        base-permission="OFBTOOLS"
         mount-point="/khepri-orchestrator"/>
 </ofbiz-component>
