@@ -1,0 +1,114 @@
+# =========================
+
+# 🔧 OFBiz / Java / Gradle
+
+# =========================
+
+# Build
+gemini.md
+/build/
+/out/
+/bin/
+
+# Gradle
+
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Logs
+
+*.log
+
+# Temp
+
+/tmp/
+/temp/
+
+# Compiled
+
+*.class
+
+# Package
+
+*.jar
+*.war
+*.ear
+
+# =========================
+
+# 🌐 Frontend (Vite + Vue)
+
+# =========================
+
+node_modules/
+dist/
+.vite/
+.cache/
+
+# Env files (sensíveis)
+
+.env
+.env.*
+!.env.example
+
+# Logs JS
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+
+# 🧠 IntelliJ / IDEs
+
+# =========================
+
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VSCode (caso use)
+
+.vscode/
+
+# =========================
+
+# 🐧 Sistema / OS
+
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# =========================
+
+# 🔐 OFBiz específicos (opcional)
+
+# =========================
+
+# runtime gerado
+
+runtime/logs/
+runtime/tmp/
+runtime/data/derby/
+
+# =========================
+
+# 🧪 Test / Coverage
+
+# =========================
+
+coverage/
+*.lcov
+
+# =========================
+
+# 🔥 Outros
+
+# =========================
+
+*.swp
+*.swo
+*~
