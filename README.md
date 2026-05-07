@@ -19,8 +19,8 @@ O Apache OFBiz é um ERP industrial poderoso, mas seu uso direto (Out-of-the-Box
 
 O Khepri atua como o maestro do ERP, interceptando intenções de negócio e orquestrando as regras internamente sob uma única transação:
 
-* **Cadastro Atômico (One-Click):** Orquestra a criação de `Person`, `FixedAsset` e gera o `WorkEffort` (Atendimento) de forma transacional através do serviço `registerVehicleServiceEntry`[cite: 1, 4].
-* **Trava de Estoque:** Implementa validação rígida via `khepriVerifyPartsAvailability`, impedindo que uma Ordem de Serviço avance sem a reserva de estoque (`OrderItemShipGrpInvRes`) equivalente a 100% da necessidade[cite: 1, 3].
+* **Cadastro Atômico (One-Click):** Orquestra a criação de `Person`, `FixedAsset` e gera o `WorkEffort` (Atendimento) de forma transacional através do serviço `registerVehicleServiceEntry`.
+* **Trava de Estoque:** Implementa validação rígida via `khepriVerifyPartsAvailability`, impedindo que uma Ordem de Serviço avance sem a reserva de estoque (`OrderItemShipGrpInvRes`) equivalente a 100% da necessidade.
 * **Gate Pass (Bloqueio Financeiro):** Condiciona a liberação física do veículo à integridade financeira das faturas vinculadas.
 
 #### Fluxos do Processo de Entrada de Veículo
@@ -32,7 +32,7 @@ Este documento apresenta dois níveis de visualização do processo de entrada d
 
 ---
 
-#### 1. Fluxo Didático (Visão de Negócio)
+## 1. Fluxo Didático (Visão de Negócio)
 
 Este fluxo representa o processo de forma simples e acessível para pessoas não técnicas.
 
@@ -50,7 +50,7 @@ A[Cliente chega na oficina]
 
 ---
 
-# 2. Fluxo Técnico (Visão Arquitetural)
+## 2. Fluxo Técnico (Visão Arquitetural)
 
 Este fluxo detalha a comunicação entre frontend, camada orquestradora (BFF), motor de serviços do OFBiz e persistência no banco de dados.
 
@@ -100,16 +100,6 @@ sequenceDiagram
         BFF-->>UI: returnSuccess(partyId, fixedAssetId, workEffortId)
     end
 ```
-
----
-
-# Objetivo dos Diagramas
-
-| Diagrama       | Objetivo                        | Público                         |
-| -------------- | ------------------------------- | ------------------------------- |
-| Fluxo Didático | Explicar o processo de negócio  | Clientes, analistas, onboarding |
-| Fluxo Técnico  | Explicar arquitetura e execução | Desenvolvedores e arquitetos    |
-
 ---
 
 # Conceitos Importantes
@@ -164,29 +154,29 @@ Isso significa que:
 
 O Khepri é um **Plugin Nativo** integrado ao `Service Engine` e `Entity Engine` do Apache OFBiz:
 
-* **Design Pattern:** Atua como um **BFF / Facade Layer**, expondo serviços de alto nível que abstraem a complexidade do modelo `Party/WorkEffort/Asset`[cite: 1, 4].
+* **Design Pattern:** Atua como um **BFF / Facade Layer**, expondo serviços de alto nível que abstraem a complexidade do modelo `Party/WorkEffort/Asset`.
 * **Tecnologias:** Java 17 e Groovy.
 * **Persistência:** Utiliza o modelo transacional nativo do OFBiz, garantindo rollback automático em caso de falhas parciais na orquestração.
 
 ## 🚦 Status do Projeto
 
 - [x] Estrutura base do plugin (v24.09).
-- [x] Orquestração da Recepção (Cadastro Atômico: Cliente + Veículo + OS)[cite: 1, 4].
-- [x] Validação Técnica de Estoque (Trava de segurança)[cite: 1, 3].
+- [x] Orquestração da Recepção (Cadastro Atômico: Cliente + Veículo + OS).
+- [x] Validação Técnica de Estoque (Trava de segurança).
 - [ ] Fluxo de Aditivo de Orçamento.
 - [ ] Validação de Pagamento vs. Liberação (Gate Pass).
 
 ## 🔌 Serviços Principais (API de Orquestração)
 
-* **`registerVehicleServiceEntry`:** Consolida os dados do solicitante e do veículo, criando o vínculo de atendimento em uma única chamada atômica[cite: 4].
-* **`khepriVerifyPartsAvailability`:** Serviço de validação que checa a integridade física do estoque antes de permitir o início da execução de uma OS[cite: 3].
+* **`registerVehicleServiceEntry`:** Consolida os dados do solicitante e do veículo, criando o vínculo de atendimento em uma única chamada atômica.
+* **`khepriVerifyPartsAvailability`:** Serviço de validação que checa a integridade física do estoque antes de permitir o início da execução de uma OS.
 
 ## 🧪 Engenharia de Qualidade (QA)
 
-Atualmente, o projeto conta com 16 casos de teste automatizados baseados em `OFBizTestCase` e `GroovyScriptTestCase`[cite: 1, 2]:
+Atualmente, o projeto conta com 16 casos de teste automatizados baseados em `OFBizTestCase` e `GroovyScriptTestCase`:
 
-* **`InventoryValidationTests`:** Valida que a oficina não inicie serviços sem peças reservadas fisicamente[cite: 3].
-* **`WorkshopOrchestratorTests`:** Valida o fluxo atômico de recepção, incluindo cenários de rollback em caso de dados inválidos[cite: 2].
+* **`InventoryValidationTests`:** Valida que a oficina não inicie serviços sem peças reservadas fisicamente.
+* **`WorkshopOrchestratorTests`:** Valida o fluxo atômico de recepção, incluindo cenários de rollback em caso de dados inválidos.
 
 ## 💻 Como Rodar (Desenvolvimento)
 
@@ -212,5 +202,5 @@ Execute da raiz do projeto OFBiz para carregar tipos e dados semente:
 ## 🔍 Troubleshooting
 
 * **Erro de Constraint (FK) no WorkEffort:** Certifique-se de carregar o `seed data` para incluir os tipos `SERVICE_EVENT` e `WE_CREATED`.
-* **Cannot locate service:** Verifique se o plugin está em `plugins/khepri-orchestrator` e se o serviço está registrado nos arquivos `servicedef/services_*.xml`[cite: 1, 4].
+* **Cannot locate service:** Verifique se o plugin está em `plugins/khepri-orchestrator` e se o serviço está registrado nos arquivos `servicedef/services_*.xml`.
 ```
