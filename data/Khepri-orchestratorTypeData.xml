@@ -3,6 +3,10 @@
     <!-- Definição de Tipos para Orquestração da Oficina -->
     <WorkEffortType description="Autorização de Saída (Gate Pass)" hasTable="N" parentTypeId="ASSET_USAGE" workEffortTypeId="GATE_PASS"/>
     <WorkEffortType description="Diagnóstico Técnico" hasTable="N" parentTypeId="TASK" workEffortTypeId="DIAGNOSTIC"/>
+    <WorkEffortType description="Atendimento de Oficina" hasTable="N" parentTypeId="TASK" workEffortTypeId="SERVICE_EVENT"/>
+
+    <!-- Status Específicos para o Atendimento -->
+    <StatusItem description="Atendimento Criado" sequenceId="01" statusCode="CREATED" statusId="WE_CREATED" statusTypeId="WORK_EFFORT_STATUS"/>
 
     <!-- Status Específicos para o Gate Pass -->
     <StatusType description="Khepri Gate Pass Status" hasTable="N" statusTypeId="KHEPRI_GP_STATUS"/>
