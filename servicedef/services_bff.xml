@@ -2,7 +2,17 @@
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="https://ofbiz.apache.org/dtds/services.xsd">
     <description>Khepri Orchestrator BFF Services (Orchestration)</description>
-    <service name="khepriBffDummy" engine="interface" location="" invoke="">
-        <description>Dummy service to keep XML valid</description>
+    <service name="registerVehicleServiceEntry" engine="java"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator" invoke="registerVehicleServiceEntry"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Orquestra a entrada de um veículo: cria pessoa, ativo fixo, atendimento e vínculo.</description>
+        <attribute name="firstName" type="String" mode="IN" optional="true"/>
+        <attribute name="lastName" type="String" mode="IN" optional="true"/>
+        <attribute name="licensePlate" type="String" mode="IN" optional="true"/>
+        <attribute name="partyId" type="String" mode="OUT" optional="true"/>
+        <attribute name="fixedAssetId" type="String" mode="OUT" optional="true"/>
+        <attribute name="workEffortId" type="String" mode="OUT" optional="true"/>
     </service>
 </services>
