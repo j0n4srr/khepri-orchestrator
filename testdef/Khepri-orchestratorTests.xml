@@ -3,8 +3,16 @@
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:noNamespaceSchemaLocation="https://ofbiz.apache.org/dtds/test-suite.xsd">
 
+    <test-case case-name="load-khepri-types">
+        <entity-xml action="load" entity-xml-url="component://khepri-orchestrator/data/Khepri-orchestratorTypeData.xml"/>
+    </test-case>
+
     <test-case case-name="inventory-validation">
         <junit-test-suite class-name="tuaregue.khepri.orchestrator.test.InventoryValidationTests"/>
+    </test-case>
+
+    <test-case case-name="workshop-orchestration-tests">
+        <junit-test-suite class-name="org.tuaregue.khepri.bff.WorkshopOrchestratorTests"/>
     </test-case>
 
 </test-suite>
