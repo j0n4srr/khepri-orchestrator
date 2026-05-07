@@ -1,79 +1,216 @@
-# ⚙️ Khepri Orchestrator
+# ⚙️ Khepri Orchestrator: Enterprise Process Orchestration
 
-O **Khepri Orchestrator** é um plugin customizado para o **Apache OFBiz (v24.09)** desenvolvido para assumir o controle das operações da **Oficina Mecânica Tuaregue**, localizada em Atibaia-SP.
 
-O objetivo do Khepri não é recriar o ERP, mas atuar como uma **camada de orquestração interna** que simplifica as regras do OFBiz para a realidade do "chão de oficina". Ele consolida dezenas de telas, cliques e serviços fragmentados do sistema base em fluxos ágeis, seguros e voltados para o dia a dia mecânico.
+[![Java Version](https://img.shields.io/badge/Java-17-blue?style=flat-square&logo=java)](https://adoptium.net/)
+[![OFBiz Version](https://img.shields.io/badge/OFBiz-24.09-red?style=flat-square)](https://ofbiz.apache.org/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-lightgrey?style=flat-square)](http://www.apache.org/licenses/LICENSE-2.0)
 
----
+O **Khepri Orchestrator** é um plugin de engenharia de software desenvolvido para o ecossistema **Apache OFBiz**. Ele atua como uma camada de **BFF (Backend for Frontend)** e **Facade**, encapsulando a alta complexidade relacional do ERP em fluxos transacionais atômicos, especificamente desenhados para a automação de processos na **Oficina Mecânica Tuaregue** (Atibaia-SP).
 
 ## 🚨 O Problema: OFBiz "Puro" vs. Realidade da Oficina
 
-O Apache OFBiz é um ERP industrial poderoso, mas seu uso direto (Out-of-the-Box) gerou atritos operacionais graves na Tuaregue:
+O Apache OFBiz é um ERP industrial poderoso, mas seu uso direto (Out-of-the-Box) gerava atritos operacionais graves:
 
-* **Burocracia na Recepção:** Cadastrar um cliente e seu veículo exige passar por telas de `Party`, `ContactMech`, `PostalAddress` e `FixedAsset`. Um processo que deveria levar 30 segundos levava minutos.
-* **Execução sem Garantia Física:** O sistema padrão permitia que o mecânico iniciasse um serviço (`WorkEffort`) mesmo se a peça não estivesse fisicamente reservada (`InventoryItem`), causando paradas na oficina.
-* **Orçamentos Flexíveis Demais:** Ausência de travas rígidas; era possível adulterar ordens de serviço em andamento sem gerar um "Aditivo de Orçamento" formal.
-* **Fuga de Receita:** Veículos podiam ser sinalizados como "Prontos" e liberados fisicamente sem que a fatura (`Invoice`) estivesse 100% paga ou com as peças não faturadas corretamente.
+* **Burocracia na Recepção:** O cadastro fragmentado de clientes e veículos exigia múltiplas interações em entidades distintas (`Party`, `FixedAsset`), tornando o processo lento e propenso a erros.
+* **Execução sem Garantia Física:** O sistema padrão permitia iniciar serviços sem a reserva física de peças no estoque, resultando em paradas não planejadas na oficina.
+* **Fuga de Receita:** Riscos de liberação de veículos sem a devida validação de faturas e pagamentos.
+
+## 🛠️ A Solução: Orquestração e Consistência
+
+O Khepri atua como o maestro do ERP, interceptando intenções de negócio e orquestrando as regras internamente sob uma única transação:
+
+* **Cadastro Atômico (One-Click):** Orquestra a criação de `Person`, `FixedAsset` e gera o `WorkEffort` (Atendimento) de forma transacional através do serviço `registerVehicleServiceEntry`[cite: 1, 4].
+* **Trava de Estoque:** Implementa validação rígida via `khepriVerifyPartsAvailability`, impedindo que uma Ordem de Serviço avance sem a reserva de estoque (`OrderItemShipGrpInvRes`) equivalente a 100% da necessidade[cite: 1, 3].
+* **Gate Pass (Bloqueio Financeiro):** Condiciona a liberação física do veículo à integridade financeira das faturas vinculadas.
+
+#### Fluxos do Processo de Entrada de Veículo
+
+Este documento apresenta dois níveis de visualização do processo de entrada de veículo na oficina:
+
+- **Fluxo Didático:** visão simplificada orientada ao negócio.
+- **Fluxo Técnico:** visão arquitetural detalhada do backend e persistência.
 
 ---
 
-## 🛠️ A Solução: O que o Khepri FAZ de verdade
+#### 1. Fluxo Didático (Visão de Negócio)
 
-O Khepri atua como o maestro do OFBiz. Ele intercepta as intenções do usuário final (via UI customizada ou API) e orquestra as regras de negócio internamente:
+Este fluxo representa o processo de forma simples e acessível para pessoas não técnicas.
 
-* **Cadastro Atômico (One-Click):** Cria `Party`, `PartyRole` e vincula o `FixedAsset` (Veículo) em uma única transação de serviço (`createTuaregueCustomerProfile`).
-* **Trava de Estoque:** O Khepri não permite que uma Ordem de Serviço mude para "Em Execução" se a query de `OrderItemShipGrpInvRes` (Reserva de Estoque) não bater 100% com a necessidade da OS.
-* **Controle de Aditivos:** Se um problema novo for encontrado durante a desmontagem, o Khepri trava a OS principal e força a criação de uma `Quote` (Aditivo). O serviço só volta a andar quando o aditivo vira `ORDER_APPROVED`.
-* **Gate Pass (Bloqueio Financeiro):** A rotina de finalização da OS consulta o `AcctgTrans` e a `Invoice`. Se o status não for `PMNT_RECEIVED`, o botão de liberação do veículo é desabilitado na interface do recepcionista.
+```mermaid
+flowchart LR
+
+A[Cliente chega na oficina]
+--> B[Validar informações]
+--> C[Cadastrar cliente]
+--> D[Registrar veículo]
+--> E[Abrir ordem de serviço]
+--> F[Vincular cliente ao atendimento]
+--> G[Confirmar entrada]
+```
 
 ---
+
+# 2. Fluxo Técnico (Visão Arquitetural)
+
+Este fluxo detalha a comunicação entre frontend, camada orquestradora (BFF), motor de serviços do OFBiz e persistência no banco de dados.
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant UI as Frontend (Mobile/Web)
+    participant BFF as WorkshopOrchestrator
+    participant Core as OFBiz Service Engine
+    participant DB as Entity Engine (Derby)
+
+    UI->>BFF: registerVehicleServiceEntry(ctx)
+
+    Note over BFF: Validação (UtilValidate)<br/>Campos obrigatórios:<br/>firstName, lastName, licensePlate
+
+    rect rgb(240, 240, 240)
+
+        Note over BFF, DB: Bloco Transacional Atômico (Rollback-Safe)
+
+        BFF->>Core: runSync("createPerson", personCtx)
+        Core->>DB: INSERT INTO PARTY/PERSON
+        DB-->>Core: partyId
+        Core-->>BFF: partyId
+
+        BFF->>Core: runSync("createFixedAsset", assetCtx)
+        Core->>DB: INSERT INTO FIXED_ASSET (VEHICLE)
+        DB-->>Core: fixedAssetId
+        Core-->>BFF: fixedAssetId
+
+        BFF->>Core: runSync("createWorkEffort", workEffortCtx)
+        Core->>DB: INSERT INTO WORK_EFFORT (SERVICE_EVENT)
+        DB-->>Core: workEffortId
+        Core-->>BFF: workEffortId
+
+        BFF->>Core: runSync("assignPartyToWorkEffort", linkCtx)
+        Core->>DB: INSERT INTO WORK_EFFORT_PARTY_ASSIGNMENT (CLIENT)
+        DB-->>Core: Success
+        Core-->>BFF: Success
+
+    end
+
+    alt Erro em qualquer etapa
+        BFF-->>UI: returnError()
+        Note over BFF, DB: Rollback automático de toda a transação
+    else Processo concluído com sucesso
+        BFF-->>UI: returnSuccess(partyId, fixedAssetId, workEffortId)
+    end
+```
+
+---
+
+# Objetivo dos Diagramas
+
+| Diagrama       | Objetivo                        | Público                         |
+| -------------- | ------------------------------- | ------------------------------- |
+| Fluxo Didático | Explicar o processo de negócio  | Clientes, analistas, onboarding |
+| Fluxo Técnico  | Explicar arquitetura e execução | Desenvolvedores e arquitetos    |
+
+---
+
+# Conceitos Importantes
+
+## WorkshopOrchestrator (BFF)
+
+Camada responsável por:
+
+* Validar dados recebidos
+* Orquestrar chamadas de serviço
+* Garantir consistência transacional
+* Centralizar regras compostas de negócio
+
+---
+
+## OFBiz Service Engine
+
+Responsável pela execução dos serviços nativos do OFBiz, como:
+
+* Cadastro de pessoas
+* Registro de ativos
+* Criação de atendimentos
+* Relacionamentos entre entidades
+
+---
+
+## Entity Engine
+
+Camada de persistência responsável por:
+
+* Operações de banco de dados
+* Controle transacional
+* Mapeamento entidade-relacional
+
+---
+
+# Garantia Transacional
+
+Todo o processo ocorre dentro de uma única transação atômica.
+
+Isso significa que:
+
+* Se qualquer etapa falhar,
+* Todas as operações anteriores são desfeitas automaticamente (rollback),
+* Garantindo integridade dos dados.
+
+```
+```
+
 
 ## 🏗️ Arquitetura
 
-O Khepri é um **Plugin Nativo** dentro do ecosistema Apache OFBiz. 
+O Khepri é um **Plugin Nativo** integrado ao `Service Engine` e `Entity Engine` do Apache OFBiz:
 
-Ele não é uma aplicação separada rodando Spring Boot. Ele utiliza o `Service Engine`, `Entity Engine` e `Event Handlers` nativos do OFBiz para garantir que todas as transações operem no mesmo banco de dados e respeitem a contabilidade do ERP.
-
-* **Linguagem Base:** Java 17 e Groovy (para Services e Scripts).
-* **Integração Front-end:** Exposição de endpoints dedicados via `controller.xml` do plugin, retornando views customizadas ou payloads JSON.
-* **Regras de Negócio:** Concentradas em SECAs (Service Entity Condition Actions) customizadas no arquivo `secas.xml` do Khepri.
-
----
+* **Design Pattern:** Atua como um **BFF / Facade Layer**, expondo serviços de alto nível que abstraem a complexidade do modelo `Party/WorkEffort/Asset`[cite: 1, 4].
+* **Tecnologias:** Java 17 e Groovy.
+* **Persistência:** Utiliza o modelo transacional nativo do OFBiz, garantindo rollback automático em caso de falhas parciais na orquestração.
 
 ## 🚦 Status do Projeto
 
-- [x] Estrutura base do plugin criada no OFBiz (`hot-deploy/khepri`).
-- [ ] Orquestração da Recepção (Cadastro de Cliente + Veículo).
-- [ ] Implementação da Trava de Estoque (Validação pré-execução).
+- [x] Estrutura base do plugin (v24.09).
+- [x] Orquestração da Recepção (Cadastro Atômico: Cliente + Veículo + OS)[cite: 1, 4].
+- [x] Validação Técnica de Estoque (Trava de segurança)[cite: 1, 3].
 - [ ] Fluxo de Aditivo de Orçamento.
 - [ ] Validação de Pagamento vs. Liberação (Gate Pass).
 
----
+## 🔌 Serviços Principais (API de Orquestração)
+
+* **`registerVehicleServiceEntry`:** Consolida os dados do solicitante e do veículo, criando o vínculo de atendimento em uma única chamada atômica[cite: 4].
+* **`khepriVerifyPartsAvailability`:** Serviço de validação que checa a integridade física do estoque antes de permitir o início da execução de uma OS[cite: 3].
+
+## 🧪 Engenharia de Qualidade (QA)
+
+Atualmente, o projeto conta com 16 casos de teste automatizados baseados em `OFBizTestCase` e `GroovyScriptTestCase`[cite: 1, 2]:
+
+* **`InventoryValidationTests`:** Valida que a oficina não inicie serviços sem peças reservadas fisicamente[cite: 3].
+* **`WorkshopOrchestratorTests`:** Valida o fluxo atômico de recepção, incluindo cenários de rollback em caso de dados inválidos[cite: 2].
 
 ## 💻 Como Rodar (Desenvolvimento)
 
-O Khepri depende de uma instância funcional do Apache OFBiz.
+### 1. Instalação
+Certifique-se de que o diretório do plugin se chama `khepri-orchestrator` dentro da pasta `plugins` do OFBiz.
 
-1. **Clone o repositório** dentro da pasta `hot-deploy` (ou `plugins`) do seu OFBiz:
-   ```bash
-   cd /caminho-do-ofbiz/plugins
-   git clone [https://github.com/seu-usuario/khepri-orchestrator.git](https://github.com/seu-usuario/khepri-orchestrator.git) khepri
-   ```
+### 2. Carga de Dados (Obrigatório)
+Execute da raiz do projeto OFBiz para carregar tipos e dados semente:
+```bash
+./gradlew "ofbiz --load-data readers=seed,seed-initial,demo component=khepri-orchestrator"
+```
 
-2. **Carregue os dados semente (Seed Data)** do Khepri (Roles, Tipos de Serviço específicos da Tuaregue):
-   ```bash
-   cd /caminho-do-ofbiz
-   ./gradlew "ofbiz --load-data readers=seed,seed-initial component=khepri"
-   ```
+### 3. Execução dos Testes Automatizados
+```bash
+./gradlew :ofbiz --args="--test component=khepri-orchestrator --test suitename=KhepriTests"
+```
 
-3. **Inicie o OFBiz:**
-   ```bash
-   ./gradlew ofbiz
-   ```
+### 4. Iniciar o Servidor
+```bash
+./gradlew ofbiz
+```
 
-4. **Acesse o plugin:**
+## 🔍 Troubleshooting
 
-
-
-
+* **Erro de Constraint (FK) no WorkEffort:** Certifique-se de carregar o `seed data` para incluir os tipos `SERVICE_EVENT` e `WE_CREATED`.
+* **Cannot locate service:** Verifique se o plugin está em `plugins/khepri-orchestrator` e se o serviço está registrado nos arquivos `servicedef/services_*.xml`[cite: 1, 4].
 ```
