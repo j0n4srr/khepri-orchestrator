@@ -23,6 +23,15 @@ class InventoryValidationTests extends OFBizTestCase {
         sfx = "_" + (System.currentTimeMillis() % 100000)
     }
 
+    void testVerifyOrderNotFound() {
+        String orderId = "NON_EXISTENT" + sfx
+
+        Map result = getDispatcher().runSync("khepriVerifyPartsAvailability", [orderId: orderId, userLogin: userLogin])
+
+        assert ServiceUtil.isError(result)
+        assert ServiceUtil.getErrorMessage(result).contains("Ordem não encontrada")
+    }
+
     void testVerifyNoItems() {
         String orderId = "ORD_EMPTY" + sfx
         getDelegator().create(getDelegator().makeValue("OrderHeader", [orderId: orderId, orderTypeId: "SALES_ORDER", statusId: "ORDER_CREATED", entryDate: now]))

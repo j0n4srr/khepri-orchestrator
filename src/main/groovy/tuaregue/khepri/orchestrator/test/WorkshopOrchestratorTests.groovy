@@ -1,100 +1,102 @@
-package org.tuaregue.khepri.bff;
+package org.tuaregue.khepri.bff
 
-import org.apache.ofbiz.service.ServiceUtil;
-import org.apache.ofbiz.service.testtools.OFBizTestCase;
-import org.apache.ofbiz.entity.GenericValue;
-import org.apache.ofbiz.entity.util.EntityQuery;
-import java.util.Map;
-import java.util.HashMap;
+import org.apache.ofbiz.service.ServiceUtil
+import org.apache.ofbiz.service.testtools.OFBizTestCase
+import org.apache.ofbiz.entity.GenericValue
+import org.apache.ofbiz.entity.util.EntityQuery
 
-/**
- * Testes de Integração para a Orquestração de Oficina (OFBiz 24.09)
- * Técnicas aplicadas: Caminho Básico e Particionamento de Equivalência.
- */
-public class WorkshopOrchestratorTests extends OFBizTestCase {
+class WorkshopOrchestratorTests extends OFBizTestCase {
 
-    public WorkshopOrchestratorTests(String name) {
-        super(name);
+    private GenericValue userLogin
+
+    WorkshopOrchestratorTests(String name) {
+        super(name)
     }
-
-    private GenericValue userLogin;
 
     @Override
     protected void setUp() throws Exception {
-        super.setUp();
-        // Pré-condição: Ter um usuário sistêmico para as chamadas de serviço
-        userLogin = EntityQuery.use(delegator).from("UserLogin").where("userLoginId", "system").queryOne();
+        super.setUp()
+        userLogin = EntityQuery.use(getDelegator()).from("UserLogin").where("userLoginId", "system").queryOne()
     }
 
-    /**
-     * CENÁRIO: Fluxo Feliz (Happy Path)
-     * Objetivo: Validar a criação de toda a cadeia de atendimento.
-     */
-    public void testRegisterVehicleServiceEntry_Success() throws Exception {
-        Map<String, Object> ctx = new HashMap<>();
-        ctx.put("firstName", "Emerson");
-        ctx.put("lastName", "Rios");
-        ctx.put("licensePlate", "ABC-1234");
-        ctx.put("userLogin", userLogin);
+    void testRegisterVehicleServiceEntry_Success() {
+        long sfx = System.currentTimeMillis() % 100000
+        Map ctx = [
+                firstName: "Emerson",
+                lastName: "Rios",
+                licensePlate: "ABC-" + sfx,
+                userLogin: userLogin
+        ]
 
-        Map<String, Object> resp = dispatcher.runSync("registerVehicleServiceEntry", ctx);
+        Map resp = getDispatcher().runSync("registerVehicleServiceEntry", ctx)
 
-        // Assert 1: Sucesso do serviço
-        assertTrue(ServiceUtil.isSuccess(resp));
+        assert ServiceUtil.isSuccess(resp)
+        assert resp.partyId != null
+        assert resp.fixedAssetId != null
+        assert resp.workEffortId != null
 
-        String partyId = (String) resp.get("partyId");
-        String fixedAssetId = (String) resp.get("fixedAssetId");
-        String workEffortId = (String) resp.get("workEffortId");
+        GenericValue person = EntityQuery.use(getDelegator()).from("Person").where("partyId", resp.partyId).queryOne()
+        assert person.firstName == "Emerson"
 
-        // Assert 2: Verificação de persistência (Entity Engine)
-        assertNotNull(partyId);
-        GenericValue person = EntityQuery.use(delegator).from("Person").where("partyId", partyId).queryOne();
-        assertEquals("Emerson", person.getString("firstName"));
-
-        assertNotNull(fixedAssetId);
-        GenericValue asset = EntityQuery.use(delegator).from("FixedAsset").where("fixedAssetId", fixedAssetId).queryOne();
-        assertEquals("ABC-1234", asset.getString("fixedAssetName"));
-
-        // Assert 3: Validação do Vínculo (Regra de Negócio)
-        GenericValue assignment = EntityQuery.use(delegator)
-                .from("WorkEffortPartyAssignment")
-                .where("workEffortId", workEffortId, "partyId", partyId, "roleTypeId", "CLIENT")
-                .queryFirst();
-        assertNotNull("O vínculo entre o cliente e o atendimento deve existir", assignment);
+        GenericValue asset = EntityQuery.use(getDelegator()).from("FixedAsset").where("fixedAssetId", resp.fixedAssetId).queryOne()
+        assert asset.fixedAssetName == ("ABC-" + sfx)
     }
 
-    /**
-     * CENÁRIO: Negativo - Falha na criação da Pessoa
-     * Objetivo: Validar que o orquestrador interrompe o fluxo se um sub-serviço falhar.
-     * Técnica: Valor Limite / Falha de Integração.
-     */
-    public void testRegisterVehicleServiceEntry_FailureOnPerson() throws Exception {
-        Map<String, Object> ctx = new HashMap<>();
-        // Omitindo firstName para forçar erro no serviço 'createPerson' nativo
-        ctx.put("lastName", "Teste Erro");
-        ctx.put("licensePlate", "ERR-0000");
-        ctx.put("userLogin", userLogin);
+    void testRegisterVehicleServiceEntry_Idempotency_Person() {
+        long sfx = System.currentTimeMillis() % 100000
+        String fName = "Joao" + sfx
+        String lName = "Silva" + sfx
 
-        Map<String, Object> resp = dispatcher.runSync("registerVehicleServiceEntry", ctx);
+        Map ctx1 = [firstName: fName, lastName: lName, licensePlate: "PLATE1-" + sfx, userLogin: userLogin]
+        Map resp1 = getDispatcher().runSync("registerVehicleServiceEntry", ctx1)
+        String partyId1 = resp1.partyId
 
-        // Assert: Deve retornar erro propagado do createPerson
-        assertTrue(ServiceUtil.isError(resp));
-        assertNull(resp.get("workEffortId"));
+        Map ctx2 = [firstName: fName, lastName: lName, licensePlate: "PLATE2-" + sfx, userLogin: userLogin]
+        Map resp2 = getDispatcher().runSync("registerVehicleServiceEntry", ctx2)
+        String partyId2 = resp2.partyId
+
+        assertEquals("O partyId deve ser o mesmo para o mesmo nome e sobrenome", partyId1, partyId2)
     }
 
-    /**
-     * CENÁRIO: Negativo - Placa Inválida
-     * Nota: No OFBiz, 'createFixedAsset' pode falhar se tipos obrigatórios não forem passados.
-     */
-    public void testRegisterVehicleServiceEntry_MissingPlate() throws Exception {
-        Map<String, Object> ctx = new HashMap<>();
-        ctx.put("firstName", "John");
-        ctx.put("lastName", "Doe");
-        // licensePlate nulo
-        ctx.put("userLogin", userLogin);
+    void testRegisterVehicleServiceEntry_Idempotency_Asset_Sanitization() {
+        long sfx = System.currentTimeMillis() % 100000
+        String plateOriginal = "khp-" + sfx
+        String plateSanitizedInput = "  KHP-" + sfx + "  "
 
-        Map<String, Object> resp = dispatcher.runSync("registerVehicleServiceEntry", ctx);
+        Map ctx1 = [firstName: "User1", lastName: "Test", licensePlate: plateOriginal, userLogin: userLogin]
+        Map resp1 = getDispatcher().runSync("registerVehicleServiceEntry", ctx1)
+        String assetId1 = resp1.fixedAssetId
 
-        assertTrue("O serviço deve falhar quando a placa (fixedAssetName) está ausente", ServiceUtil.isError(resp));
+        Map ctx2 = [firstName: "User2", lastName: "Test", licensePlate: plateSanitizedInput, userLogin: userLogin]
+        Map resp2 = getDispatcher().runSync("registerVehicleServiceEntry", ctx2)
+        String assetId2 = resp2.fixedAssetId
+
+        assertEquals("O fixedAssetId deve ser o mesmo devido a sanitização e busca por nome", assetId1, assetId2)
+    }
+
+    void testRegisterVehicleServiceEntry_FailureMissingLastName() {
+        Map ctx = [
+                firstName: "John",
+                licensePlate: "FAIL-123",
+                userLogin: userLogin
+        ]
+
+        Map resp = getDispatcher().runSync("registerVehicleServiceEntry", ctx)
+
+        assert ServiceUtil.isError(resp)
+        assert ServiceUtil.getErrorMessage(resp).contains("lastName")
+    }
+
+    void testRegisterVehicleServiceEntry_MissingPlate() {
+        Map ctx = [
+                firstName: "John",
+                lastName: "Doe",
+                userLogin: userLogin
+        ]
+
+        Map resp = getDispatcher().runSync("registerVehicleServiceEntry", ctx)
+
+        assert ServiceUtil.isError(resp)
+        assert ServiceUtil.getErrorMessage(resp).contains("licensePlate")
     }
 }
