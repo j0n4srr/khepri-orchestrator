@@ -1,4 +1,4 @@
-package tuaregue.khepri.orchestrator.test
+package org.tuaregue.khepri.orchestrator.test
 
 import org.apache.ofbiz.entity.GenericValue
 import org.apache.ofbiz.service.ServiceUtil

@@ -4,6 +4,8 @@ import org.apache.ofbiz.service.ServiceUtil
 import org.apache.ofbiz.service.testtools.OFBizTestCase
 import org.apache.ofbiz.entity.GenericValue
 import org.apache.ofbiz.entity.util.EntityQuery
+import org.apache.ofbiz.base.util.UtilDateTime
+import org.apache.ofbiz.service.ServiceValidationException
 
 class WorkshopOrchestratorTests extends OFBizTestCase {
 
@@ -17,6 +19,13 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
     protected void setUp() throws Exception {
         super.setUp()
         userLogin = EntityQuery.use(getDelegator()).from("UserLogin").where("userLoginId", "system").queryOne()
+
+        GenericValue perm = getDelegator().makeValue("UserLoginSecurityGroup", [
+                userLoginId: "system",
+                groupId: "SUPER",
+                fromDate: UtilDateTime.nowTimestamp()
+        ])
+        getDelegator().createOrStore(perm)
     }
 
     void testRegisterVehicleServiceEntry_Success() {
@@ -81,10 +90,12 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
                 userLogin: userLogin
         ]
 
-        Map resp = getDispatcher().runSync("registerVehicleServiceEntry", ctx)
-
-        assert ServiceUtil.isError(resp)
-        assert ServiceUtil.getErrorMessage(resp).contains("lastName")
+        try {
+            getDispatcher().runSync("registerVehicleServiceEntry", ctx)
+            fail("Deveria ter lançado ServiceValidationException devido ao lastName ausente")
+        } catch (ServiceValidationException e) {
+            assert e.getMessage().contains("lastName")
+        }
     }
 
     void testRegisterVehicleServiceEntry_MissingPlate() {
@@ -94,9 +105,11 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
                 userLogin: userLogin
         ]
 
-        Map resp = getDispatcher().runSync("registerVehicleServiceEntry", ctx)
-
-        assert ServiceUtil.isError(resp)
-        assert ServiceUtil.getErrorMessage(resp).contains("licensePlate")
+        try {
+            getDispatcher().runSync("registerVehicleServiceEntry", ctx)
+            fail("Deveria ter lançado ServiceValidationException devido à licensePlate ausente")
+        } catch (ServiceValidationException e) {
+            assert e.getMessage().contains("licensePlate")
+        }
     }
 }
