@@ -6,6 +6,7 @@ import org.apache.ofbiz.entity.GenericValue
 import org.apache.ofbiz.entity.util.EntityQuery
 import org.apache.ofbiz.base.util.UtilDateTime
 import org.apache.ofbiz.service.ServiceValidationException
+import java.math.BigDecimal
 
 class WorkshopOrchestratorTests extends OFBizTestCase {
 
@@ -111,5 +112,104 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
         } catch (ServiceValidationException e) {
             assert e.getMessage().contains("licensePlate")
         }
+    }
+
+    void testCreateWorkshopQuoteFromOS_Success() {
+        long sfx = System.currentTimeMillis() % 100000
+        Map entryCtx = [
+                firstName: "Quote",
+                lastName: "Test",
+                licensePlate: "QT-" + sfx,
+                userLogin: userLogin
+        ]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        String workEffortId = entryResp.workEffortId
+
+        Map quoteCtx = [
+                workEffortId: workEffortId,
+                userLogin: userLogin
+        ]
+        Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
+
+        assert ServiceUtil.isSuccess(quoteResp)
+        assert quoteResp.quoteId != null
+
+        GenericValue weQuote = EntityQuery.use(getDelegator())
+                .from("QuoteWorkEffort")
+                .where("workEffortId", workEffortId, "quoteId", quoteResp.quoteId)
+                .queryOne()
+        assert weQuote != null
+    }
+
+    void testCreateWorkshopQuoteFromOS_FailureNoClient() {
+        String workEffortId = getDelegator().getNextSeqId("WorkEffort")
+        GenericValue workEffort = getDelegator().makeValue("WorkEffort", [
+                workEffortId: workEffortId,
+                workEffortTypeId: "SERVICE_EVENT",
+                currentStatusId: "WE_CREATED",
+                workEffortName: "Test OS Without Client"
+        ])
+        getDelegator().create(workEffort)
+
+        Map quoteCtx = [
+                workEffortId: workEffortId,
+                userLogin: userLogin
+        ]
+        Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
+
+        assert ServiceUtil.isError(quoteResp)
+        assert ServiceUtil.getErrorMessage(quoteResp).contains("Nenhum cliente")
+    }
+
+    void testAddItemToWorkshopQuote_Success() {
+        long sfx = System.currentTimeMillis() % 100000
+        Map entryCtx = [
+                firstName: "Item",
+                lastName: "Tester",
+                licensePlate: "ADD-" + sfx,
+                userLogin: userLogin
+        ]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        String workEffortId = entryResp.workEffortId
+
+        Map quoteCtx = [
+                workEffortId: workEffortId,
+                userLogin: userLogin
+        ]
+        Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
+        String quoteId = quoteResp.quoteId
+
+        String productId = "PROD_MANUF"
+
+        Map addItemCtx = [
+                quoteId: quoteId,
+                productId: productId,
+                quantity: new BigDecimal("2.0"),
+                userLogin: userLogin
+        ]
+        Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
+
+        assert ServiceUtil.isSuccess(addItemResp)
+        assert addItemResp.quoteItemSeqId != null
+
+        GenericValue quoteItem = EntityQuery.use(getDelegator())
+                .from("QuoteItem")
+                .where("quoteId", quoteId, "quoteItemSeqId", addItemResp.quoteItemSeqId)
+                .queryOne()
+        assert quoteItem != null
+        assert quoteItem.productId == productId
+    }
+
+    void testAddItemToWorkshopQuote_FailureInvalidQuote() {
+        Map addItemCtx = [
+                quoteId: "NON_EXISTENT",
+                productId: "PROD_MANUF",
+                quantity: new BigDecimal("1.0"),
+                userLogin: userLogin
+        ]
+        Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
+
+        assert ServiceUtil.isError(addItemResp)
+        assert ServiceUtil.getErrorMessage(addItemResp).contains("não encontrado")
     }
 }
