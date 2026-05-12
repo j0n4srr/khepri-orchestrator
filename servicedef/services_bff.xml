@@ -1,24 +1,50 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="https://ofbiz.apache.org/dtds/services.xsd">
+          xsi:noNamespaceSchemaLocation="https://ofbiz.apache.org/dtds/services.xsd">
     <description>Khepri Orchestrator BFF Services (Orchestration)</description>
+
     <service name="khepriOrchestratorPermissionCheck" engine="groovy"
              location="component://khepri-orchestrator/src/main/groovy/org/tuaregue/khepri/orchestrator/PermissionServices.groovy"
              invoke="khepriOrchestratorPermissionCheck">
         <attribute name="mainAction" type="String" mode="IN" optional="true"/>
     </service>
-<service name="registerVehicleServiceEntry" engine="java" require-new-transaction="true"
-         location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
-         invoke="registerVehicleServiceEntry"
-         auth="false"
-         export="true"
-         validate="true">
-    <description>Atomic Orchestrator for Vehicle Entry</description>
-    <attribute name="firstName" type="String" mode="IN" optional="false"/>
-    <attribute name="lastName" type="String" mode="IN" optional="false"/>
+
+    <service name="registerVehicleServiceEntry" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="registerVehicleServiceEntry"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Atomic Orchestrator for Vehicle Entry</description>
+        <attribute name="firstName" type="String" mode="IN" optional="false"/>
+        <attribute name="lastName" type="String" mode="IN" optional="false"/>
         <attribute name="licensePlate" type="String" mode="IN" optional="false"/>
         <attribute name="partyId" type="String" mode="OUT" optional="false"/>
         <attribute name="fixedAssetId" type="String" mode="OUT" optional="false"/>
         <attribute name="workEffortId" type="String" mode="OUT" optional="false"/>
+    </service>
+
+    <service name="createWorkshopQuoteFromOS" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="createWorkshopQuoteFromOS"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Gera um registro comercial (Quote) a partir de uma OS técnica (WorkEffort)</description>
+        <attribute name="workEffortId" type="String" mode="IN" optional="false"/>
+        <attribute name="quoteId" type="String" mode="OUT" optional="false"/>
+    </service>
+
+    <service name="addItemToWorkshopQuote" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="addItemToWorkshopQuote"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Adiciona peça ou serviço ao orçamento com validação técnica</description>
+        <attribute name="quoteId" type="String" mode="IN" optional="false"/>
+        <attribute name="productId" type="String" mode="IN" optional="false"/>
+        <attribute name="quantity" type="BigDecimal" mode="IN" optional="false"/>
+        <attribute name="quoteItemSeqId" type="String" mode="OUT" optional="false"/>
     </service>
 </services>

@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <entity-engine-xml>
-    <!-- Definição de Tipos para Orquestração da Oficina -->
     <WorkEffortType description="Autorização de Saída (Gate Pass)" hasTable="N" parentTypeId="ASSET_USAGE" workEffortTypeId="GATE_PASS"/>
     <WorkEffortType description="Diagnóstico Técnico" hasTable="N" parentTypeId="TASK" workEffortTypeId="DIAGNOSTIC"/>
     <WorkEffortType description="Atendimento de Oficina" hasTable="N" parentTypeId="TASK" workEffortTypeId="SERVICE_EVENT"/>
 
-    <!-- Status Específicos para o Atendimento -->
     <StatusItem description="Atendimento Criado" sequenceId="01" statusCode="CREATED" statusId="WE_CREATED" statusTypeId="WORK_EFFORT_STATUS"/>
 
-    <!-- Status Específicos para o Gate Pass -->
     <StatusType description="Khepri Gate Pass Status" hasTable="N" statusTypeId="KHEPRI_GP_STATUS"/>
     <StatusItem description="Aguardando Liberação" sequenceId="01" statusCode="PENDING" statusId="KGP_PENDING" statusTypeId="KHEPRI_GP_STATUS"/>
     <StatusItem description="Veículo Liberado" sequenceId="10" statusCode="RELEASED" statusId="KGP_RELEASED" statusTypeId="KHEPRI_GP_STATUS"/>
     <StatusItem description="Saída Cancelada" sequenceId="99" statusCode="CANCELLED" statusId="KGP_CANCELLED" statusTypeId="KHEPRI_GP_STATUS"/>
 
-    <!-- Regras de Transição de Status -->
     <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_RELEASED" transitionName="Liberar Veículo"/>
     <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_CANCELLED" transitionName="Cancelar Liberação"/>
 
     <StatusType description="Work Effort Assignment" hasTable="N" statusTypeId="WORK_EFFORT_ASGN_ST"/>
     <StatusItem description="Assigned" sequenceId="01" statusCode="ASSIGNED" statusId="PRTYASGN_ASSIGNED" statusTypeId="WORK_EFFORT_ASGN_ST"/>
+
+    <StatusItem description="Orçamento Criado" sequenceId="01" statusCode="CREATED" statusId="QUOTE_CREATED" statusTypeId="QUOTE_STATUS"/>
+    <StatusItem description="Orçamento Aprovado" sequenceId="10" statusCode="APPROVED" statusId="QUOTE_APPROVED" statusTypeId="QUOTE_STATUS"/>
+    <StatusItem description="Orçamento Rejeitado" sequenceId="99" statusCode="REJECTED" statusId="QUOTE_REJECTED" statusTypeId="QUOTE_STATUS"/>
 </entity-engine-xml>
