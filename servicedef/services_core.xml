@@ -4,7 +4,7 @@
     <description>Khepri Orchestrator Core Services (Atomic)</description>
     <service name="khepriVerifyPartsAvailability"
              engine="java"
-             location="tuaregue.khepri.orchestrator.core.inventory.KhepriInventoryServices"
+             location="org.tuaregue.khepri.orchestrator.core.inventory.KhepriInventoryServices"
              invoke="verifyPartsAvailability"
              auth="true"
              export="true"

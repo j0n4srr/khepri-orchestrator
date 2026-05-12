@@ -17,4 +17,7 @@
     <!-- Regras de Transição de Status -->
     <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_RELEASED" transitionName="Liberar Veículo"/>
     <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_CANCELLED" transitionName="Cancelar Liberação"/>
+
+    <StatusType description="Work Effort Assignment" hasTable="N" statusTypeId="WORK_EFFORT_ASGN_ST"/>
+    <StatusItem description="Assigned" sequenceId="01" statusCode="ASSIGNED" statusId="PRTYASGN_ASSIGNED" statusTypeId="WORK_EFFORT_ASGN_ST"/>
 </entity-engine-xml>

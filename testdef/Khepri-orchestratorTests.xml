@@ -8,7 +8,7 @@
     </test-case>
 
     <test-case case-name="inventory-validation">
-        <junit-test-suite class-name="tuaregue.khepri.orchestrator.test.InventoryValidationTests"/>
+        <junit-test-suite class-name="org.tuaregue.khepri.orchestrator.test.InventoryValidationTests"/>
     </test-case>
 
     <test-case case-name="workshop-orchestration-tests">
