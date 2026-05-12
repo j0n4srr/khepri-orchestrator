@@ -5,8 +5,9 @@
 [![OFBiz Version](https://img.shields.io/badge/OFBiz-24.09-red?style=flat-square)](https://ofbiz.apache.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-lightgrey?style=flat-square)](http://www.apache.org/licenses/LICENSE-2.0)
 
-O **Khepri Orchestrator** é um plugin de engenharia de software desenvolvido para o ecossistema **Apache OFBiz**. Ele atua como uma camada de **BFF (Backend for Frontend)** e **Facade**, encapsulando a alta complexidade relacional do ERP em fluxos transacionais atômicos, especificamente desenhados para a automação de processos na **Oficina Mecânica Tuaregue** (Atibaia-SP).
-
+O **Khepri Orchestrator** é um plugin de engenharia de software desenvolvido para o ecossistema **Apache OFBiz**. Ele atua como uma camada de **BFF (Backend for Frontend)** e **Facade**, especificamente desenhado para a automação de processos na [Oficina Mecânica Tuaregue](https://grupo-tuaregue.ueniweb.com/) (Atibaia-SP).
+## 🏢 O Cliente: Tuaregue Automotiva
+A [Tuaregue Automotiva](https://grupo-tuaregue.ueniweb.com/) é uma oficina especializada em mecânica geral e ar-condicionado localizada em Atibaia-SP. O projeto Khepri foi concebido para resolver desafios logísticos e transacionais específicos desta operação.
 ## 🚨 O Problema: OFBiz "Puro" vs. Realidade da Oficina
 
 O Apache OFBiz é um ERP industrial poderoso, mas seu uso direto (Out-of-the-Box) gerava atritos operacionais graves:
