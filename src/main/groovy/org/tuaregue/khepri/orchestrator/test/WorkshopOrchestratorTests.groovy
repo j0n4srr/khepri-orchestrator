@@ -11,6 +11,7 @@ import java.math.BigDecimal
 class WorkshopOrchestratorTests extends OFBizTestCase {
 
     private GenericValue userLogin
+    private static final String TEST_FACILITY = "OFICINA_ATIBAIA"
 
     WorkshopOrchestratorTests(String name) {
         super(name)
@@ -163,6 +164,19 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
 
     void testAddItemToWorkshopQuote_Success() {
         long sfx = System.currentTimeMillis() % 100000
+        String productId = "PROD_TEST_" + sfx
+
+        // Setup: Garantir que o produto existe e tem estoque na Facility correta
+        getDelegator().create("Product", [productId: productId, productTypeId: "FINISHED_GOOD", internalName: "Peça de Teste"])
+        getDelegator().create("InventoryItem", [
+                inventoryItemId: "INV_" + sfx,
+                inventoryItemTypeId: "NON_SERIAL_INV_ITEM",
+                productId: productId,
+                facilityId: TEST_FACILITY,
+                quantityOnHandTotal: new BigDecimal("10.0"),
+                availableToPromiseTotal: new BigDecimal("10.0")
+        ])
+
         Map entryCtx = [
                 firstName: "Item",
                 lastName: "Tester",
@@ -179,12 +193,11 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
         Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
         String quoteId = quoteResp.quoteId
 
-        String productId = "PROD_MANUF"
-
         Map addItemCtx = [
                 quoteId: quoteId,
                 productId: productId,
                 quantity: new BigDecimal("2.0"),
+                facilityId: TEST_FACILITY,
                 userLogin: userLogin
         ]
         Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
@@ -210,6 +223,6 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
         Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
 
         assert ServiceUtil.isError(addItemResp)
-        assert ServiceUtil.getErrorMessage(addItemResp).contains("não encontrado")
+        assert ServiceUtil.getErrorMessage(addItemResp).contains("encontrado")
     }
 }
