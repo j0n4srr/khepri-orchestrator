@@ -45,6 +45,7 @@
         <attribute name="quoteId" type="String" mode="IN" optional="false"/>
         <attribute name="productId" type="String" mode="IN" optional="false"/>
         <attribute name="quantity" type="BigDecimal" mode="IN" optional="false"/>
+        <attribute name="facilityId" type="String" mode="IN" optional="true"/>
         <attribute name="quoteItemSeqId" type="String" mode="OUT" optional="false"/>
     </service>
 </services>

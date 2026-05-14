@@ -35,7 +35,6 @@ public class WorkshopOrchestrator {
 
         Map<String, Object> result = ServiceUtil.returnSuccess();
         try {
-            // 1. Identificar ou Criar Solicitante (Pessoa)
             String partyId = null;
             GenericValue existingPerson = EntityQuery.use(dctx.getDelegator())
                     .from("Person")
@@ -54,7 +53,6 @@ public class WorkshopOrchestrator {
                 partyId = (String) personRes.get("partyId");
             }
 
-            // 2. Identificar ou Criar Veículo (FixedAsset)
             String fixedAssetId = null;
             GenericValue existingAsset = EntityQuery.use(dctx.getDelegator())
                     .from("FixedAsset")
@@ -73,7 +71,6 @@ public class WorkshopOrchestrator {
                 fixedAssetId = (String) assetRes.get("fixedAssetId");
             }
 
-            // 3. Criar Atendimento (WorkEffort)
             Map<String, Object> workEffortCtx = new HashMap<>();
             workEffortCtx.put("workEffortTypeId", KhepriConstants.WORK_EFFORT_TYPE_EVENT);
             workEffortCtx.put("workEffortName", "Atendimento Veicular: " + licensePlate);
@@ -84,7 +81,6 @@ public class WorkshopOrchestrator {
             if (ServiceUtil.isError(workRes)) return workRes;
             String workEffortId = (String) workRes.get("workEffortId");
 
-            // 4. Vincular Solicitante ao Atendimento
             Map<String, Object> linkCtx = new HashMap<>();
             linkCtx.put("workEffortId", workEffortId);
             linkCtx.put("partyId", partyId);
@@ -155,6 +151,7 @@ public class WorkshopOrchestrator {
         String quoteId = (String) context.get("quoteId");
         String productId = (String) context.get("productId");
         BigDecimal quantity = (BigDecimal) context.get("quantity");
+        String facilityId = (String) context.get("facilityId");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
         try {
@@ -163,16 +160,58 @@ public class WorkshopOrchestrator {
                 return ServiceUtil.returnError("Orçamento " + quoteId + " não encontrado.");
             }
 
+            GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
+                    .from("QuoteWorkEffort")
+                    .where("quoteId", quoteId)
+                    .queryFirst();
+
+            if (quoteWorkEffort == null) {
+                return ServiceUtil.returnError("Nenhum atendimento vinculado ao orçamento " + quoteId);
+            }
+            String workEffortId = quoteWorkEffort.getString("workEffortId");
+
             GenericValue product = EntityQuery.use(dctx.getDelegator()).from("Product").where("productId", productId).queryOne();
             if (product == null) {
                 return ServiceUtil.returnError("Produto " + productId + " não encontrado.");
             }
 
+            String productTypeId = product.getString("productTypeId");
+            GenericValue productType = EntityQuery.use(dctx.getDelegator()).from("ProductType").where("productTypeId", productTypeId).cache().queryOne();
+            boolean isPhysicalPart = "GOOD".equals(productTypeId) || (productType != null && "GOOD".equals(productType.getString("parentTypeId")));
+
+            if (isPhysicalPart) {
+                if (facilityId == null) {
+                    return ServiceUtil.returnError("FacilityId é obrigatório para adição de peças físicas.");
+                }
+
+                Map<String, Object> invCtx = new HashMap<>();
+                invCtx.put("productId", productId);
+                invCtx.put("facilityId", facilityId);
+                Map<String, Object> invRes = dctx.getDispatcher().runSync("getInventoryAvailableByFacility", invCtx);
+                if (ServiceUtil.isError(invRes)) return invRes;
+
+                BigDecimal atp = (BigDecimal) invRes.get("availableToPromiseTotal");
+                if (atp == null || atp.compareTo(quantity) < 0) {
+                    return ServiceUtil.returnError("Saldo insuficiente para o produto " + productId + ". Disponível: " + atp);
+                }
+
+                Map<String, Object> wegsCtx = new HashMap<>();
+                wegsCtx.put("workEffortId", workEffortId);
+                wegsCtx.put("productId", productId);
+                wegsCtx.put("workEffortGoodStdTypeId", "USE");
+                wegsCtx.put("fromDate", UtilDateTime.nowTimestamp());
+                wegsCtx.put("estimatedQuantity", quantity);
+                wegsCtx.put("userLogin", userLogin);
+
+                Map<String, Object> wegsRes = dctx.getDispatcher().runSync("createWorkEffortGoodStandard", wegsCtx);
+                if (ServiceUtil.isError(wegsRes)) return wegsRes;
+            }
+
             Map<String, Object> priceCtx = new HashMap<>();
             priceCtx.put("product", product);
-            priceCtx.put("productId", productId);
-            priceCtx.put("partyId", quote.getString("partyId"));
-            priceCtx.put("currencyUomId", quote.getString("currencyUomId"));
+            priceCtx.put("prodCatalogId", context.get("prodCatalogId"));
+            priceCtx.put("partyId", quote.get("partyId"));
+            priceCtx.put("currencyUomId", quote.get("currencyUomId"));
             priceCtx.put("userLogin", userLogin);
 
             Map<String, Object> priceRes = dctx.getDispatcher().runSync("calculateProductPrice", priceCtx);
