@@ -4,6 +4,8 @@
     <WorkEffortType description="Diagnóstico Técnico" hasTable="N" parentTypeId="TASK" workEffortTypeId="DIAGNOSTIC"/>
     <WorkEffortType description="Atendimento de Oficina" hasTable="N" parentTypeId="TASK" workEffortTypeId="SERVICE_EVENT"/>
 
+    <WorkEffortGoodStandardType description="Material Utilizado" hasTable="N" workEffortGoodStdTypeId="USE"/>
+
     <StatusItem description="Atendimento Criado" sequenceId="01" statusCode="CREATED" statusId="WE_CREATED" statusTypeId="WORK_EFFORT_STATUS"/>
 
     <StatusType description="Khepri Gate Pass Status" hasTable="N" statusTypeId="KHEPRI_GP_STATUS"/>
@@ -20,4 +22,19 @@
     <StatusItem description="Orçamento Criado" sequenceId="01" statusCode="CREATED" statusId="QUOTE_CREATED" statusTypeId="QUOTE_STATUS"/>
     <StatusItem description="Orçamento Aprovado" sequenceId="10" statusCode="APPROVED" statusId="QUOTE_APPROVED" statusTypeId="QUOTE_STATUS"/>
     <StatusItem description="Orçamento Rejeitado" sequenceId="99" statusCode="REJECTED" statusId="QUOTE_REJECTED" statusTypeId="QUOTE_STATUS"/>
+
+    <Facility facilityId="OFICINA_ATIBAIA"
+              facilityTypeId="PLANT"
+              facilityName="Tuaregue Automotiva - Atibaia"
+              ownerPartyId="Company"
+              description="Unidade principal de manutenção mecânica e ar-condicionado"/>
+
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ADM_RECEP" locationTypeEnumId="" areaId="FRONT"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ADM_CAIXA" locationTypeEnumId="" areaId="FRONT"/>
+
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_ELEV_01" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_ELEV_02" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_DIAG_01" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
+
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ST_ALMOX_01" locationTypeEnumId="FLT_BULK" areaId="STORE"/>
 </entity-engine-xml>
