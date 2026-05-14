@@ -1,4 +1,4 @@
-# 🪲 Khepri Orchestrator: Enterprise Process Orchestration
+# ☀️ Khepri Orchestrator: Enterprise Process Orchestration
 
 [![Java Version](https://img.shields.io/badge/Java-17-blue?style=flat-square&logo=java)](https://adoptium.net/)
 [![OFBiz Version](https://img.shields.io/badge/OFBiz-24.09-red?style=flat-square)](https://ofbiz.apache.org/)
@@ -10,7 +10,7 @@ O **Khepri Orchestrator** é um plugin de engenharia de software desenvolvido pa
 
 A [Tuaregue Automotiva](https://grupo-tuaregue.ueniweb.com/) é uma oficina especializada em mecânica geral e ar-condicionado localizada em Atibaia-SP. O projeto Khepri foi concebido para resolver desafios logísticos e transacionais específicos desta operação.
 
-## ⚠️ O Problema: OFBiz "Puro" vs. Realidade da Oficina
+## 🚨 O Problema: OFBiz "Puro" vs. Realidade da Oficina
 
 O Apache OFBiz é um ERP industrial poderoso, mas seu uso direto (Out-of-the-Box) gerava atritos operacionais graves:
 
@@ -18,7 +18,7 @@ O Apache OFBiz é um ERP industrial poderoso, mas seu uso direto (Out-of-the-Box
 * **Execução sem Garantia Física:** O sistema padrão permitia iniciar serviços sem a reserva física de peças no estoque, resultando em paradas não planejadas na oficina.
 * **Fuga de Receita:** Riscos de liberação de veículos sem a devida validação de faturas e pagamentos.
 
-## 🚀 A Solução: Orquestração e Consistência
+## 💡 A Solução: Orquestração e Consistência
 
 O Khepri atua como o maestro do ERP, interceptando intenções de negócio e orquestrando as regras internamente sob uma única transação:
 
@@ -52,7 +52,6 @@ A[Cliente chega na oficina]
 --> E[Abrir ordem de serviço]
 --> F[Vincular cliente ao atendimento]
 --> G[Confirmar entrada]
-
 
 ```
 
@@ -108,7 +107,6 @@ sequenceDiagram
         BFF-->>UI: returnSuccess(partyId, fixedAssetId, workEffortId)
     end
 
-
 ```
 
 ---
@@ -161,13 +159,15 @@ O Khepri é um **Plugin Nativo** integrado ao `Service Engine` e `Entity Engine`
 * **Persistência:** Utiliza o modelo transacional nativo do OFBiz, garantindo rollback automático em caso de falhas parciais na orquestração.
 * **Namespace:** `org.tuaregue.khepri` para conformidade com padrões Java.
 
-## 📊 Status do Projeto
+## 📌 Status do Projeto
 
 * [x] Estrutura base do plugin (v24.09).
 * [x] Orquestração da Recepção (Cadastro Atômico: Cliente + Veículo + OS).
 * [x] Idempotência e Sanitização de Dados.
 * [x] Modernização: Migração de Permissões para Groovy.
-* [x] Validação Técnica de Estoque (Trava de segurança).
+* [x] Configuração da Infraestrutura Física (Facility e Locations).
+* [x] Adequação de Metadados e Dependências (WorkEffortGoodStandardType e ofbiz-component.xml).
+* [x] Validação Técnica de Estoque (Trava de segurança e verificação por Facility).
 * [x] Orquestração de Orçamentos (Quote + QuoteItem).
 * [x] Integração com Motor de Preços nativo.
 * [ ] Fluxo de Aditivo de Orçamento.
@@ -180,7 +180,7 @@ O projeto conta com uma suíte de testes integrados baseada em `OFBizTestCase`:
 * **`InventoryValidationTests`:** Valida que a oficina não inicie serviços sem peças reservadas fisicamente e trata cenários de ordens inexistentes.
 * **`WorkshopOrchestratorTests`:** Valida o fluxo atômico de recepção, o ciclo de vida do orçamento (Quote) e a adição de itens com precificação dinâmica, garantindo rollback em falhas.
 
-## 🛠️ Como Rodar (Desenvolvimento)
+## 🚀 Como Rodar (Desenvolvimento)
 
 ### 1. Instalação
 
