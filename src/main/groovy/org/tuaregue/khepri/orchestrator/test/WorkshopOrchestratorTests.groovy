@@ -166,7 +166,6 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
         long sfx = System.currentTimeMillis() % 100000
         String productId = "PROD_TEST_" + sfx
 
-        // Setup: Garantir que o produto existe e tem estoque na Facility correta
         getDelegator().create("Product", [productId: productId, productTypeId: "FINISHED_GOOD", internalName: "Peça de Teste"])
         getDelegator().create("InventoryItem", [
                 inventoryItemId: "INV_" + sfx,
@@ -223,6 +222,151 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
         Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
 
         assert ServiceUtil.isError(addItemResp)
-        assert ServiceUtil.getErrorMessage(addItemResp).contains("encontrado")
+        assert ServiceUtil.getErrorMessage(addItemResp).contains("não encontrado")
+    }
+
+    void testAddItemToWorkshopQuote_LockedStatus() {
+        long sfx = System.currentTimeMillis() % 100000
+        Map entryCtx = [firstName: "Lock", lastName: "Test", licensePlate: "LCK-" + sfx, userLogin: userLogin]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        Map quoteCtx = [workEffortId: entryResp.workEffortId, userLogin: userLogin]
+        Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
+        String quoteId = quoteResp.quoteId
+
+        getDispatcher().runSync("setQuoteStatus", [quoteId: quoteId, statusId: "QUOTE_APPROVED", userLogin: userLogin])
+
+        Map addItemCtx = [quoteId: quoteId, productId: "PROD_MANUF", quantity: BigDecimal.ONE, userLogin: userLogin]
+        Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
+
+        assert ServiceUtil.isError(addItemResp)
+        assert ServiceUtil.getErrorMessage(addItemResp).contains("bloqueado")
+    }
+
+    void testAddItemToWorkshopQuote_ServiceProduct_NoInventoryCheck() {
+        long sfx = System.currentTimeMillis() % 100000
+        String serviceId = "SERV_TEST_" + sfx
+        getDelegator().create("Product", [productId: serviceId, productTypeId: "SERVICE", internalName: "Mão de Obra"])
+
+        Map entryCtx = [firstName: "Srv", lastName: "Test", licensePlate: "SRV-" + sfx, userLogin: userLogin]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        Map qRes = getDispatcher().runSync("createWorkshopQuoteFromOS", [workEffortId: entryResp.workEffortId, userLogin: userLogin])
+
+        Map addItemCtx = [quoteId: qRes.quoteId, productId: serviceId, quantity: BigDecimal.ONE, userLogin: userLogin]
+        Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
+
+        assert ServiceUtil.isSuccess(addItemResp)
+        GenericValue wegs = EntityQuery.use(getDelegator()).from("WorkEffortGoodStandard").where("workEffortId", entryResp.workEffortId, "productId", serviceId).queryFirst()
+        assert wegs == null
+    }
+
+    void testAddItemToWorkshopQuote_InsufficientInventory_Fails() {
+        long sfx = System.currentTimeMillis() % 100000
+        String productId = "PROD_EMPTY_" + sfx
+        getDelegator().create("Product", [productId: productId, productTypeId: "FINISHED_GOOD", internalName: "Empty Part"])
+
+        Map entryCtx = [firstName: "Empty", lastName: "Test", licensePlate: "EMP-" + sfx, userLogin: userLogin]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        Map qRes = getDispatcher().runSync("createWorkshopQuoteFromOS", [workEffortId: entryResp.workEffortId, userLogin: userLogin])
+
+        Map addItemCtx = [quoteId: qRes.quoteId, productId: productId, quantity: BigDecimal.TEN, facilityId: TEST_FACILITY, userLogin: userLogin]
+        Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
+
+        assert ServiceUtil.isError(addItemResp)
+        assert ServiceUtil.getErrorMessage(addItemResp).contains("Saldo insuficiente")
+    }
+
+    void testCreateWorkshopQuoteAmendment_Success() {
+        long sfx = System.currentTimeMillis() % 100000
+        Map entryCtx = [firstName: "Amend", lastName: "Test", licensePlate: "AM-" + sfx, userLogin: userLogin]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        Map quoteCtx = [workEffortId: entryResp.workEffortId, userLogin: userLogin]
+        Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
+        String originalQuoteId = quoteResp.quoteId
+
+        Map amendCtx = [quoteId: originalQuoteId, diagnosticNote: "Teste de aditivo", userLogin: userLogin]
+        Map amendResp = getDispatcher().runSync("createWorkshopQuoteAmendment", amendCtx)
+
+        assert ServiceUtil.isSuccess(amendResp)
+        assert amendResp.quoteId != null
+        assert amendResp.quoteId != originalQuoteId
+
+        GenericValue note = EntityQuery.use(getDelegator()).from("WorkEffortNote").where("workEffortId", entryResp.workEffortId).queryFirst()
+        assert note != null
+    }
+
+    void testCreateWorkshopQuoteAmendment_FailureMissingNote() {
+        Map amendCtx = [quoteId: "ANY_ID", userLogin: userLogin]
+        Map amendResp = getDispatcher().runSync("createWorkshopQuoteAmendment", amendCtx)
+
+        assert ServiceUtil.isError(amendResp)
+        assert ServiceUtil.getErrorMessage(amendResp).contains("obrigatória")
+    }
+
+    void testDecideWorkshopAmendment_Rejected_VerifyReservesDeleted() {
+        long sfx = System.currentTimeMillis() % 100000
+        String productId = "REJ_PROD_" + sfx
+        getDelegator().create("Product", [productId: productId, productTypeId: "FINISHED_GOOD", internalName: "Rejection Part"])
+        getDelegator().create("InventoryItem", [inventoryItemId: "REJ_INV_" + sfx, inventoryItemTypeId: "NON_SERIAL_INV_ITEM", productId: productId, facilityId: TEST_FACILITY, quantityOnHandTotal: BigDecimal.TEN, availableToPromiseTotal: BigDecimal.TEN])
+
+        Map entryCtx = [firstName: "Rej", lastName: "Test", licensePlate: "REJ-" + sfx, userLogin: userLogin]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        String weId = entryResp.workEffortId
+        Map quoteCtx = [workEffortId: weId, userLogin: userLogin]
+        Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
+        String quoteId = quoteResp.quoteId
+
+        getDispatcher().runSync("addItemToWorkshopQuote", [quoteId: quoteId, productId: productId, quantity: BigDecimal.ONE, facilityId: TEST_FACILITY, userLogin: userLogin])
+
+        GenericValue reserve = EntityQuery.use(getDelegator()).from("WorkEffortGoodStandard").where("workEffortId", weId, "productId", productId).queryFirst()
+        assert reserve != null
+
+        getDispatcher().runSync("decideWorkshopAmendment", [quoteId: quoteId, statusId: "QUOTE_REJECTED", userLogin: userLogin])
+
+        GenericValue deletedReserve = EntityQuery.use(getDelegator()).from("WorkEffortGoodStandard").where("workEffortId", weId, "productId", productId).queryFirst()
+        assert deletedReserve == null
+    }
+
+    void testIssuePartsToWorkEffort_Success() {
+        long sfx = System.currentTimeMillis() % 100000
+        String productId = "ISSUE_PROD_" + sfx
+        getDelegator().create("Product", [productId: productId, productTypeId: "FINISHED_GOOD", internalName: "Issuance Part"])
+        getDelegator().create("InventoryItem", [inventoryItemId: "ISS_INV_" + sfx, inventoryItemTypeId: "NON_SERIAL_INV_ITEM", productId: productId, facilityId: TEST_FACILITY, quantityOnHandTotal: BigDecimal.TEN, availableToPromiseTotal: BigDecimal.TEN])
+
+        Map entryCtx = [firstName: "Iss", lastName: "Test", licensePlate: "ISS-" + sfx, userLogin: userLogin]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        String weId = entryResp.workEffortId
+
+        GenericValue we = EntityQuery.use(getDelegator()).from("WorkEffort").where("workEffortId", weId).queryOne()
+        we.set("facilityId", TEST_FACILITY)
+        we.store()
+
+        Map quoteCtx = [workEffortId: weId, userLogin: userLogin]
+        Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", quoteCtx)
+        getDispatcher().runSync("addItemToWorkshopQuote", [quoteId: quoteResp.quoteId, productId: productId, quantity: BigDecimal.ONE, facilityId: TEST_FACILITY, userLogin: userLogin])
+
+        Map issueResp = getDispatcher().runSync("issuePartsToWorkEffort", [workEffortId: weId, userLogin: userLogin])
+        assert ServiceUtil.isSuccess(issueResp)
+
+        GenericValue inv = EntityQuery.use(getDelegator()).from("InventoryItem").where("inventoryItemId", "ISS_INV_" + sfx).queryOne()
+        assert inv.quantityOnHandTotal.compareTo(new BigDecimal("9.0")) == 0
+    }
+
+    void testGetWorkshopOSSummary_CalculatesTotal() {
+        long sfx = System.currentTimeMillis() % 100000
+        Map entryCtx = [firstName: "Sum", lastName: "Test", licensePlate: "SUM-" + sfx, userLogin: userLogin]
+        Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
+        String weId = entryResp.workEffortId
+
+        Map q1Res = getDispatcher().runSync("createWorkshopQuoteFromOS", [workEffortId: weId, userLogin: userLogin])
+        getDelegator().create("QuoteItem", [quoteId: q1Res.quoteId, quoteItemSeqId: "00001", productId: "PROD_MANUF", quantity: BigDecimal.ONE, quoteUnitPrice: new BigDecimal("100.0")])
+        getDispatcher().runSync("setQuoteStatus", [quoteId: q1Res.quoteId, statusId: "QUOTE_APPROVED", userLogin: userLogin])
+
+        Map q2Res = getDispatcher().runSync("createWorkshopQuoteAmendment", [quoteId: q1Res.quoteId, diagnosticNote: "Extra", userLogin: userLogin])
+        getDelegator().create("QuoteItem", [quoteId: q2Res.quoteId, quoteItemSeqId: "00001", productId: "PROD_MANUF", quantity: BigDecimal.ONE, quoteUnitPrice: new BigDecimal("50.0")])
+        getDispatcher().runSync("decideWorkshopAmendment", [quoteId: q2Res.quoteId, statusId: "QUOTE_REJECTED", userLogin: userLogin])
+
+        Map summaryResp = getDispatcher().runSync("getWorkshopOSSummary", [workEffortId: weId, userLogin: userLogin])
+        assert ServiceUtil.isSuccess(summaryResp)
+        assert summaryResp.totalAmount.compareTo(new BigDecimal("100.0")) == 0
     }
 }
