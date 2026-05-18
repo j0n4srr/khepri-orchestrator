@@ -48,4 +48,47 @@
         <attribute name="facilityId" type="String" mode="IN" optional="true"/>
         <attribute name="quoteItemSeqId" type="String" mode="OUT" optional="false"/>
     </service>
+
+    <service name="createWorkshopQuoteAmendment" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="createWorkshopQuoteAmendment"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Cria um orçamento aditivo vinculado a uma OS com justificativa técnica</description>
+        <attribute name="quoteId" type="String" mode="INOUT" optional="false"/>
+        <attribute name="diagnosticNote" type="String" mode="IN" optional="false"/>
+    </service>
+
+    <service name="decideWorkshopAmendment" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="decideWorkshopAmendment"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Aprova ou Rejeita um aditivo, gerenciando estorno de estoque se necessário</description>
+        <attribute name="quoteId" type="String" mode="IN" optional="false"/>
+        <attribute name="statusId" type="String" mode="IN" optional="false"/>
+    </service>
+
+    <service name="issuePartsToWorkEffort" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="issuePartsToWorkEffort"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Efetiva a saída física (QOH) das peças reservadas para uma OS</description>
+        <attribute name="workEffortId" type="String" mode="IN" optional="false"/>
+    </service>
+
+    <service name="getWorkshopOSSummary" engine="java"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="getWorkshopOSSummary"
+             auth="true"
+             export="true"
+             action="GET">
+        <description>Calcula o total financeiro consolidado (Original + Aditivos Aprovados)</description>
+        <attribute name="workEffortId" type="String" mode="IN" optional="false"/>
+        <attribute name="totalAmount" type="BigDecimal" mode="OUT" optional="false"/>
+    </service>
 </services>
