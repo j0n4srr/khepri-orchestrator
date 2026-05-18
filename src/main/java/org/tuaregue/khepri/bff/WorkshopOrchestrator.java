@@ -12,6 +12,7 @@ import org.tuaregue.khepri.KhepriConstants;
 
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.math.BigDecimal;
 
 public class WorkshopOrchestrator {
@@ -160,6 +161,11 @@ public class WorkshopOrchestrator {
                 return ServiceUtil.returnError("Orçamento " + quoteId + " não encontrado.");
             }
 
+            String quoteStatusId = quote.getString("statusId");
+            if ("QUOTE_APPROVED".equals(quoteStatusId) || "QUOTE_ACCEPTED".equals(quoteStatusId)) {
+                return ServiceUtil.returnError("Orçamento bloqueado para alteração direta (Aprovado/Aceito). É obrigatório criar um Aditivo.");
+            }
+
             GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
                     .from("QuoteWorkEffort")
                     .where("quoteId", quoteId)
@@ -181,7 +187,7 @@ public class WorkshopOrchestrator {
 
             if (isPhysicalPart) {
                 if (facilityId == null) {
-                    return ServiceUtil.returnError("FacilityId é obrigatório para adição de peças físicas.");
+                    return ServiceUtil.returnError("FacilityId é parâmetro obrigatório para adição de peças físicas.");
                 }
 
                 Map<String, Object> invCtx = new HashMap<>();
@@ -235,6 +241,235 @@ public class WorkshopOrchestrator {
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
             return ServiceUtil.returnError("Erro ao adicionar item ao orçamento: " + e.getMessage());
+        }
+    }
+
+    public static Map<String, Object> createWorkshopQuoteAmendment(DispatchContext dctx, Map<String, ? extends Object> context) {
+        String originalQuoteId = (String) context.get("quoteId");
+        String diagnosticNote = (String) context.get("diagnosticNote");
+        GenericValue userLogin = (GenericValue) context.get("userLogin");
+
+        if (diagnosticNote == null || diagnosticNote.trim().isEmpty()) {
+            return ServiceUtil.returnError("A justificativa técnica (diagnosticNote) é obrigatória para criar um aditivo.");
+        }
+
+        try {
+            GenericValue origQuote = EntityQuery.use(dctx.getDelegator()).from("Quote").where("quoteId", originalQuoteId).queryOne();
+            if (origQuote == null) {
+                return ServiceUtil.returnError("Orçamento base " + originalQuoteId + " não encontrado.");
+            }
+
+            GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
+                    .from("QuoteWorkEffort")
+                    .where("quoteId", originalQuoteId)
+                    .queryFirst();
+
+            if (quoteWorkEffort == null) {
+                return ServiceUtil.returnError("Nenhum atendimento vinculado ao orçamento " + originalQuoteId);
+            }
+            String workEffortId = quoteWorkEffort.getString("workEffortId");
+
+            Map<String, Object> noteCtx = new HashMap<>();
+            noteCtx.put("noteInfo", diagnosticNote);
+            noteCtx.put("userLogin", userLogin);
+            Map<String, Object> noteRes = dctx.getDispatcher().runSync("createNote", noteCtx);
+            if (ServiceUtil.isError(noteRes)) return noteRes;
+            String noteId = (String) noteRes.get("noteId");
+
+            Map<String, Object> weNoteCtx = new HashMap<>();
+            weNoteCtx.put("workEffortId", workEffortId);
+            weNoteCtx.put("noteId", noteId);
+            weNoteCtx.put("userLogin", userLogin);
+            Map<String, Object> weNoteRes = dctx.getDispatcher().runSync("createWorkEffortNote", weNoteCtx);
+            if (ServiceUtil.isError(weNoteRes)) return weNoteRes;
+
+            Map<String, Object> newQuoteCtx = new HashMap<>();
+            newQuoteCtx.put("quoteTypeId", KhepriConstants.QUOTE_TYPE_WORKSHOP);
+            newQuoteCtx.put("partyId", origQuote.getString("partyId"));
+            newQuoteCtx.put("statusId", KhepriConstants.QUOTE_STATUS_CREATED);
+            newQuoteCtx.put("issueDate", UtilDateTime.nowTimestamp());
+            newQuoteCtx.put("userLogin", userLogin);
+
+            Map<String, Object> quoteRes = dctx.getDispatcher().runSync("createQuote", newQuoteCtx);
+            if (ServiceUtil.isError(quoteRes)) return quoteRes;
+            String newQuoteId = (String) quoteRes.get("quoteId");
+
+            Map<String, Object> weQuoteCtx = new HashMap<>();
+            weQuoteCtx.put("workEffortId", workEffortId);
+            weQuoteCtx.put("quoteId", newQuoteId);
+            weQuoteCtx.put("userLogin", userLogin);
+
+            Map<String, Object> weQuoteRes = dctx.getDispatcher().runSync("createQuoteWorkEffort", weQuoteCtx);
+            if (ServiceUtil.isError(weQuoteRes)) return weQuoteRes;
+
+            Map<String, Object> quoteLinkCtx = new HashMap<>();
+            quoteLinkCtx.put("quoteId", originalQuoteId);
+            quoteLinkCtx.put("toQuoteId", newQuoteId);
+            quoteLinkCtx.put("quoteLinkTypeId", "QUOTE_REVISION");
+            quoteLinkCtx.put("userLogin", userLogin);
+
+            Map<String, Object> quoteLinkRes = dctx.getDispatcher().runSync("createQuoteLink", quoteLinkCtx);
+            if (ServiceUtil.isError(quoteLinkRes)) return quoteLinkRes;
+
+            Map<String, Object> result = ServiceUtil.returnSuccess();
+            result.put("quoteId", newQuoteId);
+            return result;
+
+        } catch (GenericServiceException | GenericEntityException e) {
+            Debug.logError(e, MODULE);
+            return ServiceUtil.returnError("Erro ao gerar orçamento aditivo: " + e.getMessage());
+        }
+    }
+
+    public static Map<String, Object> decideWorkshopAmendment(DispatchContext dctx, Map<String, ? extends Object> context) {
+        String quoteId = (String) context.get("quoteId");
+        String statusId = (String) context.get("statusId");
+        GenericValue userLogin = (GenericValue) context.get("userLogin");
+
+        try {
+            GenericValue quote = EntityQuery.use(dctx.getDelegator()).from("Quote").where("quoteId", quoteId).queryOne();
+            if (quote == null) {
+                return ServiceUtil.returnError("Orçamento " + quoteId + " não encontrado.");
+            }
+
+            if ("QUOTE_REJECTED".equals(statusId)) {
+                GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
+                        .from("QuoteWorkEffort")
+                        .where("quoteId", quoteId)
+                        .queryFirst();
+
+                if (quoteWorkEffort != null) {
+                    String workEffortId = quoteWorkEffort.getString("workEffortId");
+                    List<GenericValue> quoteItems = EntityQuery.use(dctx.getDelegator())
+                            .from("QuoteItem")
+                            .where("quoteId", quoteId)
+                            .queryList();
+
+                    for (GenericValue item : quoteItems) {
+                        String productId = item.getString("productId");
+                        if (productId != null) {
+                            List<GenericValue> reservations = EntityQuery.use(dctx.getDelegator())
+                                    .from("WorkEffortGoodStandard")
+                                    .where("workEffortId", workEffortId, "productId", productId, "workEffortGoodStdTypeId", "USE")
+                                    .queryList();
+
+                            for (GenericValue res : reservations) {
+                                res.remove();
+                            }
+                        }
+                    }
+                }
+            }
+
+            Map<String, Object> statusCtx = new HashMap<>();
+            statusCtx.put("quoteId", quoteId);
+            statusCtx.put("statusId", statusId);
+            statusCtx.put("userLogin", userLogin);
+            Map<String, Object> statusRes = dctx.getDispatcher().runSync("changeQuoteStatus", statusCtx);
+            if (ServiceUtil.isError(statusRes)) return statusRes;
+
+            return ServiceUtil.returnSuccess();
+
+        } catch (GenericServiceException | GenericEntityException e) {
+            Debug.logError(e, MODULE);
+            return ServiceUtil.returnError("Erro ao processar decisão do aditivo: " + e.getMessage());
+        }
+    }
+
+    public static Map<String, Object> issuePartsToWorkEffort(DispatchContext dctx, Map<String, ? extends Object> context) {
+        String workEffortId = (String) context.get("workEffortId");
+        GenericValue userLogin = (GenericValue) context.get("userLogin");
+
+        try {
+            GenericValue workEffort = EntityQuery.use(dctx.getDelegator()).from("WorkEffort").where("workEffortId", workEffortId).queryOne();
+            if (workEffort == null) {
+                return ServiceUtil.returnError("Atendimento " + workEffortId + " não encontrado.");
+            }
+            String facilityId = workEffort.getString("facilityId");
+            if (facilityId == null) {
+                return ServiceUtil.returnError("Atendimento " + workEffortId + " não possui uma Facility vinculada.");
+            }
+
+            List<GenericValue> partsToIssue = EntityQuery.use(dctx.getDelegator())
+                    .from("WorkEffortGoodStandard")
+                    .where("workEffortId", workEffortId, "workEffortGoodStdTypeId", "USE")
+                    .queryList();
+
+            for (GenericValue reservation : partsToIssue) {
+                String productId = reservation.getString("productId");
+                BigDecimal quantity = reservation.getBigDecimal("estimatedQuantity");
+
+                GenericValue inventoryItem = EntityQuery.use(dctx.getDelegator())
+                        .from("InventoryItem")
+                        .where("productId", productId, "facilityId", facilityId)
+                        .orderBy("datetimeReceived ASC")
+                        .queryFirst();
+
+                if (inventoryItem != null) {
+                    Map<String, Object> issueCtx = new HashMap<>();
+                    issueCtx.put("workEffortId", workEffortId);
+                    issueCtx.put("inventoryItemId", inventoryItem.getString("inventoryItemId"));
+                    issueCtx.put("quantity", quantity);
+                    issueCtx.put("userLogin", userLogin);
+
+                    Map<String, Object> issueRes = dctx.getDispatcher().runSync("assignInventoryToWorkEffort", issueCtx);
+                    if (ServiceUtil.isError(issueRes)) return issueRes;
+                } else {
+                    return ServiceUtil.returnError("Não foi encontrado item de inventário para o produto " + productId + " na Facility " + facilityId);
+                }
+            }
+
+            return ServiceUtil.returnSuccess();
+
+        } catch (GenericServiceException | GenericEntityException e) {
+            Debug.logError(e, MODULE);
+            return ServiceUtil.returnError("Erro na orquestração de saída de estoque: " + e.getMessage());
+        }
+    }
+
+    public static Map<String, Object> getWorkshopOSSummary(DispatchContext dctx, Map<String, ? extends Object> context) {
+        String workEffortId = (String) context.get("workEffortId");
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        try {
+            List<GenericValue> quoteLinks = EntityQuery.use(dctx.getDelegator())
+                    .from("QuoteWorkEffort")
+                    .where("workEffortId", workEffortId)
+                    .queryList();
+
+            for (GenericValue link : quoteLinks) {
+                String quoteId = link.getString("quoteId");
+                GenericValue quote = EntityQuery.use(dctx.getDelegator())
+                        .from("Quote")
+                        .where("quoteId", quoteId)
+                        .queryOne();
+
+                if (quote != null) {
+                    String statusId = quote.getString("statusId");
+                    if ("QUOTE_APPROVED".equals(statusId) || "QUOTE_ACCEPTED".equals(statusId)) {
+                        List<GenericValue> items = EntityQuery.use(dctx.getDelegator())
+                                .from("QuoteItem")
+                                .where("quoteId", quoteId)
+                                .queryList();
+
+                        for (GenericValue item : items) {
+                            BigDecimal qty = item.getBigDecimal("quantity");
+                            BigDecimal price = item.getBigDecimal("quoteUnitPrice");
+                            if (qty != null && price != null) {
+                                totalAmount = totalAmount.add(qty.multiply(price));
+                            }
+                        }
+                    }
+                }
+            }
+
+            Map<String, Object> result = ServiceUtil.returnSuccess();
+            result.put("totalAmount", totalAmount);
+            return result;
+
+        } catch (GenericEntityException e) {
+            Debug.logError(e, MODULE);
+            return ServiceUtil.returnError("Erro ao calcular sumário consolidado da OS: " + e.getMessage());
         }
     }
 }
