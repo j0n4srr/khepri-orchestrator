@@ -19,14 +19,8 @@ public class WorkshopOrchestrator {
     public static final String MODULE = WorkshopOrchestrator.class.getName();
 
     public static Map<String, Object> registerVehicleServiceEntry(DispatchContext dctx, Map<String, ? extends Object> context) {
-        if (context.get("firstName") == null) {
-            return ServiceUtil.returnError("O parâmetro firstName é obrigatório.");
-        }
-        if (context.get("lastName") == null) {
-            return ServiceUtil.returnError("O parâmetro lastName é obrigatório.");
-        }
-        if (context.get("licensePlate") == null) {
-            return ServiceUtil.returnError("O parâmetro licensePlate é obrigatório.");
+        if (context.get("firstName") == null || context.get("lastName") == null || context.get("licensePlate") == null) {
+            return ServiceUtil.returnError("Parametros obrigatorios ausentes.");
         }
 
         String firstName = (String) context.get("firstName");
@@ -34,7 +28,6 @@ public class WorkshopOrchestrator {
         String licensePlate = ((String) context.get("licensePlate")).trim().toUpperCase();
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
-        Map<String, Object> result = ServiceUtil.returnSuccess();
         try {
             String partyId = null;
             GenericValue existingPerson = EntityQuery.use(dctx.getDelegator())
@@ -92,15 +85,16 @@ public class WorkshopOrchestrator {
             Map<String, Object> linkRes = dctx.getDispatcher().runSync("assignPartyToWorkEffort", linkCtx);
             if (ServiceUtil.isError(linkRes)) return linkRes;
 
+            Map<String, Object> result = ServiceUtil.returnSuccess();
             result.put("partyId", partyId);
             result.put("fixedAssetId", fixedAssetId);
             result.put("workEffortId", workEffortId);
+            return result;
 
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro na orquestração transacional: " + e.getMessage());
+            return ServiceUtil.returnError("Erro na orquestracao: " + e.getMessage());
         }
-        return result;
     }
 
     public static Map<String, Object> createWorkshopQuoteFromOS(DispatchContext dctx, Map<String, ? extends Object> context) {
@@ -115,7 +109,7 @@ public class WorkshopOrchestrator {
                     .queryFirst();
 
             if (partyAssignment == null) {
-                return ServiceUtil.returnError("Nenhum cliente (CLIENT) vinculado ao atendimento " + workEffortId);
+                return ServiceUtil.returnError("Nenhum cliente vinculado.");
             }
             String partyId = partyAssignment.getString("partyId");
 
@@ -144,7 +138,7 @@ public class WorkshopOrchestrator {
 
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro ao gerar orçamento a partir da OS: " + e.getMessage());
+            return ServiceUtil.returnError("Erro ao gerar orcamento: " + e.getMessage());
         }
     }
 
@@ -158,12 +152,12 @@ public class WorkshopOrchestrator {
         try {
             GenericValue quote = EntityQuery.use(dctx.getDelegator()).from("Quote").where("quoteId", quoteId).queryOne();
             if (quote == null) {
-                return ServiceUtil.returnError("Orçamento " + quoteId + " não encontrado.");
+                return ServiceUtil.returnError("Orcamento nao encontrado.");
             }
 
             String quoteStatusId = quote.getString("statusId");
             if ("QUOTE_APPROVED".equals(quoteStatusId) || "QUOTE_ACCEPTED".equals(quoteStatusId)) {
-                return ServiceUtil.returnError("Orçamento bloqueado para alteração direta (Aprovado/Aceito). É obrigatório criar um Aditivo.");
+                return ServiceUtil.returnError("Orcamento bloqueado.");
             }
 
             GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
@@ -172,13 +166,13 @@ public class WorkshopOrchestrator {
                     .queryFirst();
 
             if (quoteWorkEffort == null) {
-                return ServiceUtil.returnError("Nenhum atendimento vinculado ao orçamento " + quoteId);
+                return ServiceUtil.returnError("Nenhum atendimento vinculado.");
             }
             String workEffortId = quoteWorkEffort.getString("workEffortId");
 
             GenericValue product = EntityQuery.use(dctx.getDelegator()).from("Product").where("productId", productId).queryOne();
             if (product == null) {
-                return ServiceUtil.returnError("Produto " + productId + " não encontrado.");
+                return ServiceUtil.returnError("Produto nao encontrado.");
             }
 
             String productTypeId = product.getString("productTypeId");
@@ -187,7 +181,7 @@ public class WorkshopOrchestrator {
 
             if (isPhysicalPart) {
                 if (facilityId == null) {
-                    return ServiceUtil.returnError("FacilityId é parâmetro obrigatório para adição de peças físicas.");
+                    return ServiceUtil.returnError("FacilityId obrigatorio.");
                 }
 
                 Map<String, Object> invCtx = new HashMap<>();
@@ -198,7 +192,7 @@ public class WorkshopOrchestrator {
 
                 BigDecimal atp = (BigDecimal) invRes.get("availableToPromiseTotal");
                 if (atp == null || atp.compareTo(quantity) < 0) {
-                    return ServiceUtil.returnError("Saldo insuficiente para o produto " + productId + ". Disponível: " + atp);
+                    return ServiceUtil.returnError("Saldo insuficiente.");
                 }
 
                 Map<String, Object> wegsCtx = new HashMap<>();
@@ -240,7 +234,7 @@ public class WorkshopOrchestrator {
 
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro ao adicionar item ao orçamento: " + e.getMessage());
+            return ServiceUtil.returnError("Erro ao adicionar item: " + e.getMessage());
         }
     }
 
@@ -250,13 +244,13 @@ public class WorkshopOrchestrator {
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
         if (diagnosticNote == null || diagnosticNote.trim().isEmpty()) {
-            return ServiceUtil.returnError("A justificativa técnica (diagnosticNote) é obrigatória para criar um aditivo.");
+            return ServiceUtil.returnError("Justificativa obrigatória.");
         }
 
         try {
             GenericValue origQuote = EntityQuery.use(dctx.getDelegator()).from("Quote").where("quoteId", originalQuoteId).queryOne();
             if (origQuote == null) {
-                return ServiceUtil.returnError("Orçamento base " + originalQuoteId + " não encontrado.");
+                return ServiceUtil.returnError("Orçamento base não encontrado.");
             }
 
             GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
@@ -265,23 +259,17 @@ public class WorkshopOrchestrator {
                     .queryFirst();
 
             if (quoteWorkEffort == null) {
-                return ServiceUtil.returnError("Nenhum atendimento vinculado ao orçamento " + originalQuoteId);
+                return ServiceUtil.returnError("Atendimento não vinculado.");
             }
             String workEffortId = quoteWorkEffort.getString("workEffortId");
 
-            Map<String, Object> noteCtx = new HashMap<>();
-            noteCtx.put("noteInfo", diagnosticNote);
-            noteCtx.put("userLogin", userLogin);
-            Map<String, Object> noteRes = dctx.getDispatcher().runSync("createNote", noteCtx);
-            if (ServiceUtil.isError(noteRes)) return noteRes;
-            String noteId = (String) noteRes.get("noteId");
-
             Map<String, Object> weNoteCtx = new HashMap<>();
             weNoteCtx.put("workEffortId", workEffortId);
-            weNoteCtx.put("noteId", noteId);
+            weNoteCtx.put("noteInfo", diagnosticNote);
             weNoteCtx.put("userLogin", userLogin);
             Map<String, Object> weNoteRes = dctx.getDispatcher().runSync("createWorkEffortNote", weNoteCtx);
             if (ServiceUtil.isError(weNoteRes)) return weNoteRes;
+            String noteId = (String) weNoteRes.get("noteId");
 
             Map<String, Object> newQuoteCtx = new HashMap<>();
             newQuoteCtx.put("quoteTypeId", KhepriConstants.QUOTE_TYPE_WORKSHOP);
@@ -302,14 +290,11 @@ public class WorkshopOrchestrator {
             Map<String, Object> weQuoteRes = dctx.getDispatcher().runSync("createQuoteWorkEffort", weQuoteCtx);
             if (ServiceUtil.isError(weQuoteRes)) return weQuoteRes;
 
-            Map<String, Object> quoteLinkCtx = new HashMap<>();
-            quoteLinkCtx.put("quoteId", originalQuoteId);
-            quoteLinkCtx.put("toQuoteId", newQuoteId);
-            quoteLinkCtx.put("quoteLinkTypeId", "QUOTE_REVISION");
-            quoteLinkCtx.put("userLogin", userLogin);
-
-            Map<String, Object> quoteLinkRes = dctx.getDispatcher().runSync("createQuoteLink", quoteLinkCtx);
-            if (ServiceUtil.isError(quoteLinkRes)) return quoteLinkRes;
+            GenericValue quoteAttr = dctx.getDelegator().makeValue("QuoteAttribute");
+            quoteAttr.set("quoteId", newQuoteId);
+            quoteAttr.set("attrName", "ORIGINAL_QUOTE_ID");
+            quoteAttr.set("attrValue", originalQuoteId);
+            dctx.getDelegator().create(quoteAttr);
 
             Map<String, Object> result = ServiceUtil.returnSuccess();
             result.put("quoteId", newQuoteId);
@@ -329,7 +314,7 @@ public class WorkshopOrchestrator {
         try {
             GenericValue quote = EntityQuery.use(dctx.getDelegator()).from("Quote").where("quoteId", quoteId).queryOne();
             if (quote == null) {
-                return ServiceUtil.returnError("Orçamento " + quoteId + " não encontrado.");
+                return ServiceUtil.returnError("Orcamento nao encontrado.");
             }
 
             if ("QUOTE_REJECTED".equals(statusId)) {
@@ -365,14 +350,14 @@ public class WorkshopOrchestrator {
             statusCtx.put("quoteId", quoteId);
             statusCtx.put("statusId", statusId);
             statusCtx.put("userLogin", userLogin);
-            Map<String, Object> statusRes = dctx.getDispatcher().runSync("changeQuoteStatus", statusCtx);
+            Map<String, Object> statusRes = dctx.getDispatcher().runSync("updateQuote", statusCtx);
             if (ServiceUtil.isError(statusRes)) return statusRes;
 
             return ServiceUtil.returnSuccess();
 
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro ao processar decisão do aditivo: " + e.getMessage());
+            return ServiceUtil.returnError("Erro ao processar decisao: " + e.getMessage());
         }
     }
 
@@ -383,11 +368,11 @@ public class WorkshopOrchestrator {
         try {
             GenericValue workEffort = EntityQuery.use(dctx.getDelegator()).from("WorkEffort").where("workEffortId", workEffortId).queryOne();
             if (workEffort == null) {
-                return ServiceUtil.returnError("Atendimento " + workEffortId + " não encontrado.");
+                return ServiceUtil.returnError("Atendimento nao encontrado.");
             }
             String facilityId = workEffort.getString("facilityId");
             if (facilityId == null) {
-                return ServiceUtil.returnError("Atendimento " + workEffortId + " não possui uma Facility vinculada.");
+                return ServiceUtil.returnError("Atendimento nao possui Facility.");
             }
 
             List<GenericValue> partsToIssue = EntityQuery.use(dctx.getDelegator())
@@ -415,7 +400,7 @@ public class WorkshopOrchestrator {
                     Map<String, Object> issueRes = dctx.getDispatcher().runSync("assignInventoryToWorkEffort", issueCtx);
                     if (ServiceUtil.isError(issueRes)) return issueRes;
                 } else {
-                    return ServiceUtil.returnError("Não foi encontrado item de inventário para o produto " + productId + " na Facility " + facilityId);
+                    return ServiceUtil.returnError("Item de inventario nao encontrado.");
                 }
             }
 
@@ -423,7 +408,7 @@ public class WorkshopOrchestrator {
 
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro na orquestração de saída de estoque: " + e.getMessage());
+            return ServiceUtil.returnError("Erro na baixa de estoque: " + e.getMessage());
         }
     }
 
@@ -469,7 +454,7 @@ public class WorkshopOrchestrator {
 
         } catch (GenericEntityException e) {
             Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro ao calcular sumário consolidado da OS: " + e.getMessage());
+            return ServiceUtil.returnError("Erro ao calcular sumario: " + e.getMessage());
         }
     }
 }
