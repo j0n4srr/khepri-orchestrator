@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <entity-engine-xml>
+    <RoleType description="Internal Organization" roleTypeId="INT_ORG"/>
+    <Party partyId="Company" partyTypeId="PARTY_GROUP"/>
+    <PartyRole partyId="Company" roleTypeId="INT_ORG"/>
+
+    <Product productId="PROD_MANUF" productTypeId="FINISHED_GOOD" internalName="Demo Product for Costing"/>
+
     <WorkEffortType description="Autorização de Saída (Gate Pass)" hasTable="N" parentTypeId="ASSET_USAGE" workEffortTypeId="GATE_PASS"/>
     <WorkEffortType description="Diagnóstico Técnico" hasTable="N" parentTypeId="TASK" workEffortTypeId="DIAGNOSTIC"/>
     <WorkEffortType description="Atendimento de Oficina" hasTable="N" parentTypeId="TASK" workEffortTypeId="SERVICE_EVENT"/>
@@ -16,10 +22,15 @@
     <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_RELEASED" transitionName="Liberar Veículo"/>
     <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_CANCELLED" transitionName="Cancelar Liberação"/>
 
+    <StatusValidChange statusId="QUOTE_SENT" statusIdTo="QUOTE_APPROVED" transitionName="Aprovar Orçamento"/>
+    <StatusValidChange statusId="QUOTE_CREATED" statusIdTo="QUOTE_SENT" transitionName="Enviar Orçamento"/>
+    <StatusValidChange statusId="QUOTE_SENT" statusIdTo="QUOTE_REJECTED" transitionName="Rejeitar Orçamento"/>
+
     <StatusType description="Work Effort Assignment" hasTable="N" statusTypeId="WORK_EFFORT_ASGN_ST"/>
     <StatusItem description="Assigned" sequenceId="01" statusCode="ASSIGNED" statusId="PRTYASGN_ASSIGNED" statusTypeId="WORK_EFFORT_ASGN_ST"/>
 
     <StatusItem description="Orçamento Criado" sequenceId="01" statusCode="CREATED" statusId="QUOTE_CREATED" statusTypeId="QUOTE_STATUS"/>
+    <StatusItem description="Orçamento Enviado" sequenceId="05" statusCode="SENT" statusId="QUOTE_SENT" statusTypeId="QUOTE_STATUS"/>
     <StatusItem description="Orçamento Aprovado" sequenceId="10" statusCode="APPROVED" statusId="QUOTE_APPROVED" statusTypeId="QUOTE_STATUS"/>
     <StatusItem description="Orçamento Rejeitado" sequenceId="99" statusCode="REJECTED" statusId="QUOTE_REJECTED" statusTypeId="QUOTE_STATUS"/>
 
