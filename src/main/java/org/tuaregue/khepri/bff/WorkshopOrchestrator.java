@@ -8,12 +8,21 @@ import org.apache.ofbiz.entity.GenericEntityException;
 import org.apache.ofbiz.entity.util.EntityQuery;
 import org.apache.ofbiz.base.util.Debug;
 import org.apache.ofbiz.base.util.UtilDateTime;
+import org.apache.ofbiz.base.util.UtilMisc;
+import org.apache.ofbiz.base.util.UtilValidate;
+import org.apache.ofbiz.order.shoppingcart.ShoppingCart;
+import org.apache.ofbiz.order.shoppingcart.ShoppingCartItem;
+import org.apache.ofbiz.order.shoppingcart.CheckOutHelper;
+import org.apache.ofbiz.service.LocalDispatcher;
+import org.apache.ofbiz.entity.Delegator;
 import org.tuaregue.khepri.KhepriConstants;
 
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 
 public class WorkshopOrchestrator {
     public static final String MODULE = WorkshopOrchestrator.class.getName();
@@ -146,7 +155,6 @@ public class WorkshopOrchestrator {
         String quoteId = (String) context.get("quoteId");
         String productId = (String) context.get("productId");
         BigDecimal quantity = (BigDecimal) context.get("quantity");
-        String facilityId = (String) context.get("facilityId");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
         try {
@@ -160,51 +168,9 @@ public class WorkshopOrchestrator {
                 return ServiceUtil.returnError("Orcamento bloqueado.");
             }
 
-            GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
-                    .from("QuoteWorkEffort")
-                    .where("quoteId", quoteId)
-                    .queryFirst();
-
-            if (quoteWorkEffort == null) {
-                return ServiceUtil.returnError("Nenhum atendimento vinculado.");
-            }
-            String workEffortId = quoteWorkEffort.getString("workEffortId");
-
             GenericValue product = EntityQuery.use(dctx.getDelegator()).from("Product").where("productId", productId).queryOne();
             if (product == null) {
                 return ServiceUtil.returnError("Produto nao encontrado.");
-            }
-
-            String productTypeId = product.getString("productTypeId");
-            GenericValue productType = EntityQuery.use(dctx.getDelegator()).from("ProductType").where("productTypeId", productTypeId).cache().queryOne();
-            boolean isPhysicalPart = "GOOD".equals(productTypeId) || (productType != null && "GOOD".equals(productType.getString("parentTypeId")));
-
-            if (isPhysicalPart) {
-                if (facilityId == null) {
-                    return ServiceUtil.returnError("FacilityId obrigatorio.");
-                }
-
-                Map<String, Object> invCtx = new HashMap<>();
-                invCtx.put("productId", productId);
-                invCtx.put("facilityId", facilityId);
-                Map<String, Object> invRes = dctx.getDispatcher().runSync("getInventoryAvailableByFacility", invCtx);
-                if (ServiceUtil.isError(invRes)) return invRes;
-
-                BigDecimal atp = (BigDecimal) invRes.get("availableToPromiseTotal");
-                if (atp == null || atp.compareTo(quantity) < 0) {
-                    return ServiceUtil.returnError("Saldo insuficiente.");
-                }
-
-                Map<String, Object> wegsCtx = new HashMap<>();
-                wegsCtx.put("workEffortId", workEffortId);
-                wegsCtx.put("productId", productId);
-                wegsCtx.put("workEffortGoodStdTypeId", "USE");
-                wegsCtx.put("fromDate", UtilDateTime.nowTimestamp());
-                wegsCtx.put("estimatedQuantity", quantity);
-                wegsCtx.put("userLogin", userLogin);
-
-                Map<String, Object> wegsRes = dctx.getDispatcher().runSync("createWorkEffortGoodStandard", wegsCtx);
-                if (ServiceUtil.isError(wegsRes)) return wegsRes;
             }
 
             Map<String, Object> priceCtx = new HashMap<>();
@@ -269,7 +235,6 @@ public class WorkshopOrchestrator {
             weNoteCtx.put("userLogin", userLogin);
             Map<String, Object> weNoteRes = dctx.getDispatcher().runSync("createWorkEffortNote", weNoteCtx);
             if (ServiceUtil.isError(weNoteRes)) return weNoteRes;
-            String noteId = (String) weNoteRes.get("noteId");
 
             Map<String, Object> newQuoteCtx = new HashMap<>();
             newQuoteCtx.put("quoteTypeId", KhepriConstants.QUOTE_TYPE_WORKSHOP);
@@ -370,37 +335,21 @@ public class WorkshopOrchestrator {
             if (workEffort == null) {
                 return ServiceUtil.returnError("Atendimento nao encontrado.");
             }
-            String facilityId = workEffort.getString("facilityId");
-            if (facilityId == null) {
-                return ServiceUtil.returnError("Atendimento nao possui Facility.");
-            }
 
-            List<GenericValue> partsToIssue = EntityQuery.use(dctx.getDelegator())
-                    .from("WorkEffortGoodStandard")
-                    .where("workEffortId", workEffortId, "workEffortGoodStdTypeId", "USE")
+            List<GenericValue> requirements = EntityQuery.use(dctx.getDelegator())
+                    .from("WorkEffortRequirement")
+                    .where("workEffortId", workEffortId)
                     .queryList();
 
-            for (GenericValue reservation : partsToIssue) {
-                String productId = reservation.getString("productId");
-                BigDecimal quantity = reservation.getBigDecimal("estimatedQuantity");
+            for (GenericValue reqLink : requirements) {
+                Map<String, Object> issueCtx = new HashMap<>();
+                issueCtx.put("workEffortId", workEffortId);
+                issueCtx.put("requirementId", reqLink.getString("requirementId"));
+                issueCtx.put("userLogin", userLogin);
 
-                GenericValue inventoryItem = EntityQuery.use(dctx.getDelegator())
-                        .from("InventoryItem")
-                        .where("productId", productId, "facilityId", facilityId)
-                        .orderBy("datetimeReceived ASC")
-                        .queryFirst();
-
-                if (inventoryItem != null) {
-                    Map<String, Object> issueCtx = new HashMap<>();
-                    issueCtx.put("workEffortId", workEffortId);
-                    issueCtx.put("inventoryItemId", inventoryItem.getString("inventoryItemId"));
-                    issueCtx.put("quantity", quantity);
-                    issueCtx.put("userLogin", userLogin);
-
-                    Map<String, Object> issueRes = dctx.getDispatcher().runSync("assignInventoryToWorkEffort", issueCtx);
-                    if (ServiceUtil.isError(issueRes)) return issueRes;
-                } else {
-                    return ServiceUtil.returnError("Item de inventario nao encontrado.");
+                Map<String, Object> issueRes = dctx.getDispatcher().runSync("issueOrderItemToWorkEffort", issueCtx);
+                if (ServiceUtil.isError(issueRes)) {
+                    return issueRes;
                 }
             }
 
@@ -455,6 +404,99 @@ public class WorkshopOrchestrator {
         } catch (GenericEntityException e) {
             Debug.logError(e, MODULE);
             return ServiceUtil.returnError("Erro ao calcular sumario: " + e.getMessage());
+        }
+    }
+
+    public static Map<String, Object> approveWorkshopQuoteAndCreateOrder(DispatchContext dctx, Map<String, ? extends Object> context) {
+        String quoteId = (String) context.get("quoteId");
+        GenericValue userLogin = (GenericValue) context.get("userLogin");
+        Delegator delegator = dctx.getDelegator();
+        LocalDispatcher dispatcher = dctx.getDispatcher();
+
+        try {
+            GenericValue quote = EntityQuery.use(delegator).from("Quote").where("quoteId", quoteId).queryOne();
+            if (quote == null) return ServiceUtil.returnError("Orcamento nao encontrado.");
+
+            if (!"QUOTE_APPROVED".equals(quote.getString("statusId"))) {
+                return ServiceUtil.returnError("O orcamento deve estar aprovado.");
+            }
+
+            Map<String, Object> loadRes = dispatcher.runSync("loadCartFromQuote", UtilMisc.toMap("quoteId", quoteId, "userLogin", userLogin));
+            if (ServiceUtil.isError(loadRes)) return loadRes;
+
+            ShoppingCart cart = (ShoppingCart) loadRes.get("shoppingCart");
+            cart.setOrderType("SALES_ORDER");
+            cart.setOrderPartyId(quote.getString("partyId"));
+
+            String productStoreId = quote.getString("productStoreId");
+            if (UtilValidate.isNotEmpty(productStoreId)) {
+                cart.setProductStoreId(productStoreId);
+            }
+
+            if (cart.getShipGroupSize() == 0) {
+                cart.addShipInfo();
+            }
+
+            int shipGroupIndex = 0;
+            for (ShoppingCartItem item : cart.items()) {
+                cart.positionItemToGroup(item, item.getQuantity(), 0, shipGroupIndex, true);
+            }
+
+            CheckOutHelper helper = new CheckOutHelper(dispatcher, delegator, cart);
+            Map<String, Object> orderRes = helper.createOrder(userLogin, null, null, null, false, null, null);
+
+            if (ServiceUtil.isError(orderRes)) return orderRes;
+
+            Map<String, Object> result = ServiceUtil.returnSuccess();
+            result.put("orderId", orderRes.get("orderId"));
+            return result;
+
+        } catch (Exception e) {
+            Debug.logError(e, MODULE);
+            return ServiceUtil.returnError("Erro ao converter orcamento em pedido: " + e.getMessage());
+        }
+    }
+
+    public static Map<String, Object> requestVehicleGatePass(DispatchContext dctx, Map<String, ? extends Object> context) {
+        String workEffortId = (String) context.get("workEffortId");
+        GenericValue userLogin = (GenericValue) context.get("userLogin");
+
+        try {
+            GenericValue workEffort = EntityQuery.use(dctx.getDelegator()).from("WorkEffort").where("workEffortId", workEffortId).queryOne();
+            if (workEffort == null) return ServiceUtil.returnError("Atendimento nao encontrado.");
+
+            List<GenericValue> orderHeaders = EntityQuery.use(dctx.getDelegator())
+                    .from("WorkEffortOrderHeaderView")
+                    .where("workEffortId", workEffortId)
+                    .queryList();
+
+            for (GenericValue orderHeader : orderHeaders) {
+                String orderId = orderHeader.getString("orderId");
+                List<GenericValue> invoices = EntityQuery.use(dctx.getDelegator())
+                        .from("OrderInvoiceHeaderView")
+                        .where("orderId", orderId)
+                        .queryList();
+
+                for (GenericValue invoice : invoices) {
+                    if (!"INVOICE_PAID".equals(invoice.getString("statusId"))) {
+                        return ServiceUtil.returnError("Liberacao bloqueada: Fatura " + invoice.getString("invoiceId") + " pendente.");
+                    }
+                }
+            }
+
+            Map<String, Object> gatePassCtx = new HashMap<>();
+            gatePassCtx.put("workEffortTypeId", "GATE_PASS");
+            gatePassCtx.put("workEffortName", "Gate Pass for: " + workEffortId);
+            gatePassCtx.put("currentStatusId", "KGP_RELEASED");
+            gatePassCtx.put("workEffortParentId", workEffortId);
+            gatePassCtx.put("userLogin", userLogin);
+
+            Map<String, Object> resp = dctx.getDispatcher().runSync("createWorkEffort", gatePassCtx);
+            return resp;
+
+        } catch (GenericServiceException | GenericEntityException e) {
+            Debug.logError(e, MODULE);
+            return ServiceUtil.returnError("Erro na validacao de Gate Pass: " + e.getMessage());
         }
     }
 }
