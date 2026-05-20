@@ -91,4 +91,25 @@
         <attribute name="workEffortId" type="String" mode="IN" optional="false"/>
         <attribute name="totalAmount" type="BigDecimal" mode="OUT" optional="false"/>
     </service>
+
+    <service name="approveWorkshopQuoteAndCreateOrder" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="approveWorkshopQuoteAndCreateOrder"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Converte orcamento aprovado em pedido de venda</description>
+        <attribute name="quoteId" type="String" mode="IN" optional="false"/>
+        <attribute name="orderId" type="String" mode="OUT" optional="false"/>
+    </service>
+
+    <service name="requestVehicleGatePass" engine="java" require-new-transaction="true"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="requestVehicleGatePass"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Valida financeiro e libera veiculo</description>
+        <attribute name="workEffortId" type="String" mode="IN" optional="false"/>
+    </service>
 </services>
