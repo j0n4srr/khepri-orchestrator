@@ -39,6 +39,17 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
         getDelegator().createOrStore(getDelegator().makeValue("Party", [partyId: "Company", partyTypeId: "PARTY_GROUP"]))
         getDelegator().createOrStore(getDelegator().makeValue("RoleType", [roleTypeId: "INT_ORG", description: "Internal Organization"]))
         getDelegator().createOrStore(getDelegator().makeValue("PartyRole", [partyId: "Company", roleTypeId: "INT_ORG"]))
+
+        // Configuração de Infraestrutura para testes de Order
+        getDelegator().createOrStore(getDelegator().makeValue("Facility", [facilityId: TEST_FACILITY, facilityTypeId: "WAREHOUSE", ownerPartyId: "Company"]))
+        getDelegator().createOrStore(getDelegator().makeValue("ProductStore", [
+                productStoreId: TEST_PRODUCT_STORE,
+                payToPartyId: "Company",
+                inventoryFacilityId: TEST_FACILITY,
+                reserveInventory: "Y",
+                checkInventory: "N",
+                defaultCurrencyUomId: "BRL"
+        ]))
     }
 
     void testRegisterVehicleServiceEntry_Success() {
@@ -243,23 +254,53 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
     void testApproveWorkshopQuoteAndCreateOrder_Success() {
         long sfx = System.currentTimeMillis() % 100000
         String productId = "PROD_ORDER_" + sfx
-        getDelegator().createOrStore(getDelegator().makeValue("Product", [productId: productId, productTypeId: "FINISHED_GOOD", internalName: "Item de Pedido"]))
+        
+        // Criar Produto com Preço para garantir carregamento no carrinho
+        getDelegator().createOrStore(getDelegator().makeValue("Product", [
+                productId: productId, 
+                productTypeId: "FINISHED_GOOD", 
+                internalName: "Item de Pedido Teste"
+        ]))
+        
+        getDelegator().createOrStore(getDelegator().makeValue("ProductPrice", [
+                productId: productId,
+                productPriceTypeId: "DEFAULT_PRICE",
+                productPricePurposeId: "PURCHASE",
+                currencyUomId: "BRL",
+                productStoreGroupId: "_NA_",
+                fromDate: UtilDateTime.nowTimestamp(),
+                price: new BigDecimal("150.00")
+        ]))
 
         Map entryCtx = [firstName: "Ord", lastName: "Test", licensePlate: "ORD-" + sfx, userLogin: userLogin]
         Map entryResp = getDispatcher().runSync("registerVehicleServiceEntry", entryCtx)
         Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", [workEffortId: entryResp.workEffortId, userLogin: userLogin])
         String quoteId = quoteResp.quoteId
 
+        // Vincular Quote à ProductStore (necessário para cálculo de preço no addItem)
         GenericValue quote = EntityQuery.use(getDelegator()).from("Quote").where("quoteId", quoteId).queryOne()
-        quote.set("statusId", "QUOTE_APPROVED")
         quote.set("productStoreId", TEST_PRODUCT_STORE)
+        quote.set("currencyUomId", "BRL")
         quote.store()
 
-        Map addItemCtx = [quoteId: quoteId, productId: productId, quantity: BigDecimal.ONE, facilityId: TEST_FACILITY, userLogin: userLogin]
-        getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
+        // Adicionar item explicitamente via serviço (Status ainda é QUOTE_CREATED)
+        Map addItemCtx = [
+                quoteId: quoteId, 
+                productId: productId, 
+                quantity: BigDecimal.ONE, 
+                userLogin: userLogin
+        ]
+        Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
+        assert ServiceUtil.isSuccess(addItemResp)
 
+        // AGORA Aprovar o orçamento para permitir a conversão
+        quote.set("statusId", "QUOTE_APPROVED")
+        quote.store()
+
+        // Executar conversão
         Map orderResp = getDispatcher().runSync("approveWorkshopQuoteAndCreateOrder", [quoteId: quoteId, userLogin: userLogin])
         Debug.logInfo("DEBUG: orderResp = " + orderResp, "WorkshopOrchestratorTests")
+        
         assert ServiceUtil.isSuccess(orderResp)
         assert orderResp.orderId != null
     }
