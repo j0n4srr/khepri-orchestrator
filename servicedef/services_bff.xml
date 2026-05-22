@@ -9,6 +9,19 @@
         <attribute name="mainAction" type="String" mode="IN" optional="true"/>
     </service>
 
+    <service name="createSimpleWorkshopProduct" engine="java"
+             location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
+             invoke="createSimpleWorkshopProduct"
+             auth="true"
+             export="true"
+             action="POST">
+        <description>Serviço simples para cadastro de produtos da oficina</description>
+        <attribute name="productName" type="String" mode="IN" optional="false"/>
+        <attribute name="price" type="BigDecimal" mode="IN" optional="false"/>
+        <attribute name="productCategoryId" type="String" mode="IN" optional="true"/>
+        <attribute name="productId" type="String" mode="OUT" optional="false"/>
+    </service>
+
     <service name="registerVehicleServiceEntry" engine="java" require-new-transaction="true"
              location="org.tuaregue.khepri.bff.WorkshopOrchestrator"
              invoke="registerVehicleServiceEntry"

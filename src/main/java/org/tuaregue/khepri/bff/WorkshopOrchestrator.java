@@ -3,6 +3,10 @@ package org.tuaregue.khepri.bff;
 import org.apache.ofbiz.service.DispatchContext;
 import org.apache.ofbiz.service.ServiceUtil;
 import org.apache.ofbiz.service.GenericServiceException;
+import org.apache.ofbiz.service.ModelService;
+import java.util.Locale;
+import org.apache.ofbiz.base.util.Debug;
+import org.apache.ofbiz.order.shoppingcart.ShoppingCartItem;
 import org.apache.ofbiz.entity.GenericValue;
 import org.apache.ofbiz.entity.GenericEntityException;
 import org.apache.ofbiz.entity.util.EntityQuery;
@@ -20,14 +24,26 @@ import org.tuaregue.khepri.KhepriConstants;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ArrayList;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 
 public class WorkshopOrchestrator {
     public static final String MODULE = WorkshopOrchestrator.class.getName();
 
+    private static void performSecurityCheck(DispatchContext dctx, Map<String, ? extends Object> context) throws Exception {
+        LocalDispatcher dispatcher = dctx.getDispatcher();
+        Map<String, Object> result = dispatcher.runSync("khepriOrchestratorPermissionCheck", context);
+        if (ServiceUtil.isError(result)) {
+            throw new Exception((String) result.get(ModelService.ERROR_MESSAGE));
+        }
+    }
+
     public static Map<String, Object> registerVehicleServiceEntry(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         if (context.get("firstName") == null || context.get("lastName") == null || context.get("licensePlate") == null) {
             return ServiceUtil.returnError("Parametros obrigatorios ausentes.");
         }
@@ -107,6 +123,12 @@ public class WorkshopOrchestrator {
     }
 
     public static Map<String, Object> createWorkshopQuoteFromOS(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         String workEffortId = (String) context.get("workEffortId");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
@@ -125,6 +147,7 @@ public class WorkshopOrchestrator {
             Map<String, Object> quoteCtx = new HashMap<>();
             quoteCtx.put("quoteTypeId", KhepriConstants.QUOTE_TYPE_WORKSHOP);
             quoteCtx.put("partyId", partyId);
+            quoteCtx.put("productStoreId", "9000");
             quoteCtx.put("statusId", KhepriConstants.QUOTE_STATUS_CREATED);
             quoteCtx.put("issueDate", UtilDateTime.nowTimestamp());
             quoteCtx.put("userLogin", userLogin);
@@ -152,6 +175,12 @@ public class WorkshopOrchestrator {
     }
 
     public static Map<String, Object> addItemToWorkshopQuote(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         String quoteId = (String) context.get("quoteId");
         String productId = (String) context.get("productId");
         BigDecimal quantity = (BigDecimal) context.get("quantity");
@@ -205,18 +234,24 @@ public class WorkshopOrchestrator {
     }
 
     public static Map<String, Object> createWorkshopQuoteAmendment(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         String originalQuoteId = (String) context.get("quoteId");
         String diagnosticNote = (String) context.get("diagnosticNote");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
         if (diagnosticNote == null || diagnosticNote.trim().isEmpty()) {
-            return ServiceUtil.returnError("Justificativa obrigatória.");
+            return ServiceUtil.returnError("Justificativa obrigatoria.");
         }
 
         try {
             GenericValue origQuote = EntityQuery.use(dctx.getDelegator()).from("Quote").where("quoteId", originalQuoteId).queryOne();
             if (origQuote == null) {
-                return ServiceUtil.returnError("Orçamento base não encontrado.");
+                return ServiceUtil.returnError("Orcamento base nao encontrado.");
             }
 
             GenericValue quoteWorkEffort = EntityQuery.use(dctx.getDelegator())
@@ -225,7 +260,7 @@ public class WorkshopOrchestrator {
                     .queryFirst();
 
             if (quoteWorkEffort == null) {
-                return ServiceUtil.returnError("Atendimento não vinculado.");
+                return ServiceUtil.returnError("Atendimento nao vinculado.");
             }
             String workEffortId = quoteWorkEffort.getString("workEffortId");
 
@@ -267,11 +302,17 @@ public class WorkshopOrchestrator {
 
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro ao gerar orçamento aditivo: " + e.getMessage());
+            return ServiceUtil.returnError("Erro ao gerar orcamento aditivo: " + e.getMessage());
         }
     }
 
     public static Map<String, Object> decideWorkshopAmendment(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         String quoteId = (String) context.get("quoteId");
         String statusId = (String) context.get("statusId");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
@@ -327,6 +368,12 @@ public class WorkshopOrchestrator {
     }
 
     public static Map<String, Object> issuePartsToWorkEffort(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         String workEffortId = (String) context.get("workEffortId");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
@@ -362,6 +409,12 @@ public class WorkshopOrchestrator {
     }
 
     public static Map<String, Object> getWorkshopOSSummary(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         String workEffortId = (String) context.get("workEffortId");
         BigDecimal totalAmount = BigDecimal.ZERO;
 
@@ -406,58 +459,95 @@ public class WorkshopOrchestrator {
             return ServiceUtil.returnError("Erro ao calcular sumario: " + e.getMessage());
         }
     }
-
     public static Map<String, Object> approveWorkshopQuoteAndCreateOrder(DispatchContext dctx, Map<String, ? extends Object> context) {
-        String quoteId = (String) context.get("quoteId");
-        GenericValue userLogin = (GenericValue) context.get("userLogin");
         Delegator delegator = dctx.getDelegator();
         LocalDispatcher dispatcher = dctx.getDispatcher();
+        GenericValue userLogin = (GenericValue) context.get("userLogin");
+        String quoteId = (String) context.get("quoteId");
+
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
+        Debug.logInfo("Iniciando aprovação e conversão de orçamento para quoteId: " + quoteId, MODULE);
 
         try {
             GenericValue quote = EntityQuery.use(delegator).from("Quote").where("quoteId", quoteId).queryOne();
-            if (quote == null) return ServiceUtil.returnError("Orcamento nao encontrado.");
-
-            if (!"QUOTE_APPROVED".equals(quote.getString("statusId"))) {
-                return ServiceUtil.returnError("O orcamento deve estar aprovado.");
+            if (quote == null) {
+                return ServiceUtil.returnError("Orçamento não encontrado: " + quoteId);
             }
 
-            Map<String, Object> loadRes = dispatcher.runSync("loadCartFromQuote", UtilMisc.toMap("quoteId", quoteId, "userLogin", userLogin));
-            if (ServiceUtil.isError(loadRes)) return loadRes;
-
-            ShoppingCart cart = (ShoppingCart) loadRes.get("shoppingCart");
-            cart.setOrderType("SALES_ORDER");
-            cart.setOrderPartyId(quote.getString("partyId"));
+            if (!"QUOTE_APPROVED".equals(quote.getString("statusId"))) {
+                return ServiceUtil.returnError("O orçamento deve estar aprovado para conversão.");
+            }
 
             String productStoreId = quote.getString("productStoreId");
-            if (UtilValidate.isNotEmpty(productStoreId)) {
-                cart.setProductStoreId(productStoreId);
+            if (UtilValidate.isEmpty(productStoreId)) {
+                productStoreId = "9000";
+            }
+
+            String currencyUomId = quote.getString("currencyUomId");
+            if (UtilValidate.isEmpty(currencyUomId)) {
+                currencyUomId = "BRL";
+            }
+
+            ShoppingCart cart = new ShoppingCart(delegator, productStoreId, null, Locale.getDefault(), currencyUomId);
+            cart.setOrderType("SALES_ORDER");
+            cart.setOrderPartyId(quote.getString("partyId"));
+            cart.setUserLogin(userLogin, dispatcher);
+
+            Debug.logInfo("DEBUG CART CONTEXT - StoreId: " + cart.getProductStoreId() +
+                    ", Currency: " + cart.getCurrency() +
+                    ", PartyId: " + cart.getPartyId(), MODULE);
+
+            Map<String, Object> loadRes = dispatcher.runSync("loadCartFromQuote", UtilMisc.toMap(
+                    "quoteId", quoteId,
+                    "shoppingCart", cart,
+                    "userLogin", userLogin
+            ));
+
+            if (ServiceUtil.isError(loadRes)) {
+                Debug.logError("Erro ao carregar carrinho para quoteId " + quoteId + ": " + ServiceUtil.getErrorMessage(loadRes), MODULE);
+                return loadRes;
+            }
+
+            if (cart.size() == 0) {
+                Debug.logError("Carrinho vazio após loadCartFromQuote para quoteId: " + quoteId, MODULE);
+                return ServiceUtil.returnError("Falha ao carregar itens do orçamento no carrinho.");
             }
 
             if (cart.getShipGroupSize() == 0) {
                 cart.addShipInfo();
             }
 
-            int shipGroupIndex = 0;
-            for (ShoppingCartItem item : cart.items()) {
-                cart.positionItemToGroup(item, item.getQuantity(), 0, shipGroupIndex, true);
-            }
-
             CheckOutHelper helper = new CheckOutHelper(dispatcher, delegator, cart);
             Map<String, Object> orderRes = helper.createOrder(userLogin, null, null, null, false, null, null);
 
-            if (ServiceUtil.isError(orderRes)) return orderRes;
+            if (ServiceUtil.isError(orderRes)) {
+                Debug.logError("Erro na criação do pedido: " + ServiceUtil.getErrorMessage(orderRes), MODULE);
+                return orderRes;
+            }
 
             Map<String, Object> result = ServiceUtil.returnSuccess();
             result.put("orderId", orderRes.get("orderId"));
+            Debug.logInfo("Pedido criado com sucesso: " + orderRes.get("orderId"), MODULE);
             return result;
 
         } catch (Exception e) {
-            Debug.logError(e, MODULE);
-            return ServiceUtil.returnError("Erro ao converter orcamento em pedido: " + e.getMessage());
+            Debug.logError(e, "Erro fatal em approveWorkshopQuoteAndCreateOrder para quoteId " + quoteId, MODULE);
+            return ServiceUtil.returnError("Erro ao processar conversão do orçamento: " + e.getMessage());
         }
     }
 
     public static Map<String, Object> requestVehicleGatePass(DispatchContext dctx, Map<String, ? extends Object> context) {
+        try {
+            performSecurityCheck(dctx, context);
+        } catch (Exception e) {
+            return ServiceUtil.returnError(e.getMessage());
+        }
+
         String workEffortId = (String) context.get("workEffortId");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
@@ -497,6 +587,60 @@ public class WorkshopOrchestrator {
         } catch (GenericServiceException | GenericEntityException e) {
             Debug.logError(e, MODULE);
             return ServiceUtil.returnError("Erro na validacao de Gate Pass: " + e.getMessage());
+        }
+    }
+
+    public static Map<String, Object> createSimpleWorkshopProduct(DispatchContext dctx, Map<String, ? extends Object> context) {
+        LocalDispatcher dispatcher = dctx.getDispatcher();
+        String productName = (String) context.get("productName");
+        BigDecimal price = (BigDecimal) context.get("price");
+        String categoryId = (String) context.get("productCategoryId");
+        GenericValue userLogin = (GenericValue) context.get("userLogin");
+
+        try {
+            // 1. Criar Produto
+            Map<String, Object> productCtx = UtilMisc.toMap(
+                    "productTypeId", "FINISHED_GOOD",
+                    "productName", productName,
+                    "internalName", productName,
+                    "userLogin", userLogin
+            );
+            Map<String, Object> productResult = dispatcher.runSync("createProduct", productCtx);
+            if (ServiceUtil.isError(productResult)) return productResult;
+            String productId = (String) productResult.get("productId");
+
+            // 2. Criar Preço com Purpose COMPONENT_PRICE (Aceito em vendas)
+            Map<String, Object> priceCtx = UtilMisc.toMap(
+                    "productId", productId,
+                    "productPriceTypeId", "DEFAULT_PRICE",
+                    "productPricePurposeId", "COMPONENT_PRICE", 
+                    "productStoreGroupId", "_NA_",
+                    "currencyUomId", "BRL",
+                    "price", price,
+                    "fromDate", UtilDateTime.nowTimestamp(),
+                    "userLogin", userLogin
+            );
+            Map<String, Object> priceResult = dispatcher.runSync("createProductPrice", priceCtx);
+            if (ServiceUtil.isError(priceResult)) return priceResult;
+
+            // 3. Associar Categoria
+            if (categoryId != null) {
+                Map<String, Object> catCtx = UtilMisc.toMap(
+                        "productId", productId,
+                        "productCategoryId", categoryId,
+                        "fromDate", UtilDateTime.nowTimestamp(),
+                        "userLogin", userLogin
+                );
+                Map<String, Object> catResult = dispatcher.runSync("addProductToCategory", catCtx);
+                if (ServiceUtil.isError(catResult)) return catResult;
+            }
+
+            Map<String, Object> result = ServiceUtil.returnSuccess();
+            result.put("productId", productId);
+            return result;
+
+        } catch (Exception e) {
+            return ServiceUtil.returnError("Falha: " + e.getMessage());
         }
     }
 }

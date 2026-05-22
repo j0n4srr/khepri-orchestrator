@@ -1,15 +1,68 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <entity-engine-xml>
-    <RoleType description="Internal Organization" roleTypeId="INT_ORG"/>
+    <UomType uomTypeId="CURRENCY_MEASURE" description="Currency Measure"/>
+    <Uom uomId="BRL" uomTypeId="CURRENCY_MEASURE" description="Brazilian Real"/>
+
+    <PartyType partyTypeId="PARTY_GROUP" description="Party Group"/>
+    <FacilityType facilityTypeId="WAREHOUSE" description="Warehouse"/>
+    <RoleType roleTypeId="INT_ORG" description="Internal Organization"/>
+
     <Party partyId="Company" partyTypeId="PARTY_GROUP"/>
     <PartyRole partyId="Company" roleTypeId="INT_ORG"/>
+
+    <Facility facilityId="OFICINA_ATIBAIA"
+              facilityTypeId="WAREHOUSE"
+              facilityName="Tuaregue Automotiva - Atibaia"
+              ownerPartyId="Company"
+              description="Unidade principal de manutenção mecânica e ar-condicionado"/>
+
+    <EnumerationType enumTypeId="FAC_LOC_TYPE" description="Facility Location Type"/>
+    <Enumeration enumId="FLT_PICKLOC" enumTypeId="FAC_LOC_TYPE" description="Picking Location"/>
+    <Enumeration enumId="FLT_BULK" enumTypeId="FAC_LOC_TYPE" description="Bulk Location"/>
+
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ADM_RECEP" locationTypeEnumId="FLT_PICKLOC" areaId="FRONT"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ADM_CAIXA" locationTypeEnumId="FLT_PICKLOC" areaId="FRONT"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_ELEV_01" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_ELEV_02" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_DIAG_01" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
+    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ST_ALMOX_01" locationTypeEnumId="FLT_BULK" areaId="STORE"/>
+
+    <ProductStoreGroup productStoreGroupId="_NA_" description="Not Applicable"/>
+
+    <ProductStoreGroupMember productStoreId="9000" productStoreGroupId="_NA_" fromDate="2026-01-01 00:00:00.0"/>
+
+    <ProductStore productStoreId="9000" storeName="Oficina Atibaia Store"
+                  inventoryFacilityId="OFICINA_ATIBAIA" defaultCurrencyUomId="BRL"
+                  primaryStoreGroupId="_NA_"
+                  payToPartyId="Company" isImmediatelyFulfilled="Y" requireInventory="N"/>
+
+    <ProdCatalog prodCatalogId="OFICINA_CAT" catalogName="Catalogo Oficina"/>
+
+    <ProductStoreCatalog productStoreId="9000" prodCatalogId="OFICINA_CAT" fromDate="2026-01-01 00:00:00.0"/>
+    <ProductStoreFacility productStoreId="9000" facilityId="OFICINA_ATIBAIA" fromDate="2026-01-01 00:00:00.0"/>
+
+    <ProductCategory productCategoryId="CAT_ILUMINACAO" productCategoryTypeId="CATALOG_CATEGORY" categoryName="Iluminação"/>
+    <ProdCatalogCategory prodCatalogId="OFICINA_CAT" productCategoryId="CAT_ILUMINACAO" prodCatalogCategoryTypeId="PCCT_BROWSE_ROOT" fromDate="2026-01-01 00:00:00.0"/>
+
+    <Product productId="LAMPADA_H4_UNO" productTypeId="FINISHED_GOOD"
+             internalName="Lampada Farol Fiat Uno Attractive" productName="LÂMPADA FAROL H4 12V 60/55W 3200K"
+             weight="0.03" weightUomId="WT_kg"/>
+
+    <ProductCategoryMember productId="LAMPADA_H4_UNO" productCategoryId="CAT_ILUMINACAO" fromDate="2026-01-01 00:00:00.0"/>
+
+    <ProductPrice productId="LAMPADA_H4_UNO" productPriceTypeId="DEFAULT_PRICE" productPricePurposeId="PURCHASE"
+                  currencyUomId="BRL" productStoreGroupId="_NA_" price="55.00" fromDate="2026-01-01 00:00:00.0"/>
+    <ProductPrice productId="LAMPADA_H4_UNO" productPriceTypeId="LIST_PRICE" productPricePurposeId="PURCHASE"
+                  currencyUomId="BRL" productStoreGroupId="_NA_" price="55.00" fromDate="2026-01-01 00:00:00.0"/>
+
+    <ProductPrice productId="LAMPADA_H4_UNO" productPriceTypeId="DEFAULT_PRICE" productPricePurposeId="COMPONENT_PRICE"
+                  currencyUomId="BRL" productStoreGroupId="_NA_" price="55.00" fromDate="2026-01-01 00:00:00.0"/>
 
     <Product productId="PROD_MANUF" productTypeId="FINISHED_GOOD" internalName="Demo Product for Costing"/>
 
     <WorkEffortType description="Autorização de Saída (Gate Pass)" hasTable="N" parentTypeId="ASSET_USAGE" workEffortTypeId="GATE_PASS"/>
     <WorkEffortType description="Diagnóstico Técnico" hasTable="N" parentTypeId="TASK" workEffortTypeId="DIAGNOSTIC"/>
     <WorkEffortType description="Atendimento de Oficina" hasTable="N" parentTypeId="TASK" workEffortTypeId="SERVICE_EVENT"/>
-
     <WorkEffortGoodStandardType description="Material Utilizado" hasTable="N" workEffortGoodStdTypeId="USE"/>
 
     <StatusItem description="Atendimento Criado" sequenceId="01" statusCode="CREATED" statusId="WE_CREATED" statusTypeId="WORK_EFFORT_STATUS"/>
@@ -19,13 +72,6 @@
     <StatusItem description="Veículo Liberado" sequenceId="10" statusCode="RELEASED" statusId="KGP_RELEASED" statusTypeId="KHEPRI_GP_STATUS"/>
     <StatusItem description="Saída Cancelada" sequenceId="99" statusCode="CANCELLED" statusId="KGP_CANCELLED" statusTypeId="KHEPRI_GP_STATUS"/>
 
-    <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_RELEASED" transitionName="Liberar Veículo"/>
-    <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_CANCELLED" transitionName="Cancelar Liberação"/>
-
-    <StatusValidChange statusId="QUOTE_SENT" statusIdTo="QUOTE_APPROVED" transitionName="Aprovar Orçamento"/>
-    <StatusValidChange statusId="QUOTE_CREATED" statusIdTo="QUOTE_SENT" transitionName="Enviar Orçamento"/>
-    <StatusValidChange statusId="QUOTE_SENT" statusIdTo="QUOTE_REJECTED" transitionName="Rejeitar Orçamento"/>
-
     <StatusType description="Work Effort Assignment" hasTable="N" statusTypeId="WORK_EFFORT_ASGN_ST"/>
     <StatusItem description="Assigned" sequenceId="01" statusCode="ASSIGNED" statusId="PRTYASGN_ASSIGNED" statusTypeId="WORK_EFFORT_ASGN_ST"/>
 
@@ -34,18 +80,10 @@
     <StatusItem description="Orçamento Aprovado" sequenceId="10" statusCode="APPROVED" statusId="QUOTE_APPROVED" statusTypeId="QUOTE_STATUS"/>
     <StatusItem description="Orçamento Rejeitado" sequenceId="99" statusCode="REJECTED" statusId="QUOTE_REJECTED" statusTypeId="QUOTE_STATUS"/>
 
-    <Facility facilityId="OFICINA_ATIBAIA"
-              facilityTypeId="PLANT"
-              facilityName="Tuaregue Automotiva - Atibaia"
-              ownerPartyId="Company"
-              description="Unidade principal de manutenção mecânica e ar-condicionado"/>
-
-    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ADM_RECEP" locationTypeEnumId="" areaId="FRONT"/>
-    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ADM_CAIXA" locationTypeEnumId="" areaId="FRONT"/>
-
-    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_ELEV_01" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
-    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_ELEV_02" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
-    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="WK_DIAG_01" locationTypeEnumId="FLT_PICKLOC" areaId="WORK"/>
-
-    <FacilityLocation facilityId="OFICINA_ATIBAIA" locationSeqId="ST_ALMOX_01" locationTypeEnumId="FLT_BULK" areaId="STORE"/>
+    <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_RELEASED" transitionName="Liberar Veículo"/>
+    <StatusValidChange statusId="KGP_PENDING" statusIdTo="KGP_CANCELLED" transitionName="Cancelar Liberação"/>
+    <StatusValidChange statusId="QUOTE_CREATED" statusIdTo="QUOTE_SENT" transitionName="Enviar Orçamento"/>
+    <StatusValidChange statusId="QUOTE_CREATED" statusIdTo="QUOTE_APPROVED" transitionName="Aprovar Orçamento"/>
+    <StatusValidChange statusId="QUOTE_SENT" statusIdTo="QUOTE_APPROVED" transitionName="Aprovar Orçamento"/>
+    <StatusValidChange statusId="QUOTE_SENT" statusIdTo="QUOTE_REJECTED" transitionName="Rejeitar Orçamento"/>
 </entity-engine-xml>
