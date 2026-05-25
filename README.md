@@ -53,7 +53,6 @@ A[Cliente chega na oficina]
 --> F[Vincular cliente ao atendimento]
 --> G[Confirmar entrada]
 
-
 ```
 
 ---
@@ -66,7 +65,7 @@ Este fluxo detalha a comunicação entre frontend, camada orquestradora (BFF), m
 sequenceDiagram
     autonumber
 
-    participant UI as Frontend (Mobile/Web)
+    participant UI as Frontend (Vue.js SPA)
     participant BFF as WorkshopOrchestrator
     participant Core as OFBiz Service Engine
     participant DB as Entity Engine (Derby)
@@ -107,7 +106,6 @@ sequenceDiagram
     else Processo concluído com sucesso
         BFF-->>UI: returnSuccess(partyId, fixedAssetId, workEffortId)
     end
-
 
 ```
 
@@ -157,7 +155,7 @@ Todo o processo ocorre dentro de uma única transação atômica isolada (`requi
 O Khepri é um **Plugin Nativo** integrado ao `Service Engine` e `Entity Engine` do Apache OFBiz:
 
 * **Design Pattern:** Atua como um **BFF / Facade Layer**, expondo serviços de alto nível que abstraem a complexidade do modelo `Party/WorkEffort/Asset`.
-* **Tecnologias:** Java 17 e Groovy.
+* **Tecnologias:** Java 17, Groovy e Vue.js (SPA).
 * **Persistência:** Utiliza o modelo transacional nativo do OFBiz, garantindo rollback automático em caso de falhas parciais na orquestração.
 * **Namespace:** `org.tuaregue.khepri` para conformidade com padrões Java.
 
@@ -175,6 +173,7 @@ O Khepri é um **Plugin Nativo** integrado ao `Service Engine` e `Entity Engine`
 * [x] Integração com Motor de Preços nativo.
 * [x] Fluxo de Aditivo de Orçamento.
 * [x] Validação de Integração (Schema Fix).
+* [x] Integração Vue.js (Vite + Manifest/Groovy Bff Integration).
 
 ## 🧪 Engenharia de Qualidade (QA)
 
@@ -188,25 +187,47 @@ O projeto conta com uma suíte de testes integrados baseada em `OFBizTestCase`:
 
 Certifique-se de que o diretório do plugin se chama `khepri-orchestrator` dentro da pasta `plugins` do OFBiz.
 
-### 2. Sincronização de Schema e Carga de Dados (Obrigatório)
+### 2. Frontend Integration (Vue.js)
 
-Como o OFBiz utiliza um banco Derby em memória que pode manter estados corrompidos, sempre limpe o ambiente antes de carregar dados novos para garantir a sincronização do schema (ex: correção de nomes de colunas):
+Para que o frontend seja servido corretamente pelo OFBiz:
+
+1. Acesse a pasta do frontend:
+```bash
+cd plugins/khepri-orchestrator/webapp/khepri-orchestrator/frontend
+
+```
+
+
+2. Compile o projeto:
+```bash
+npm run build
+
+```
+
+
+Isso gerará os assets em `../static/dist` e o `manifest.json` necessário para a injeção dinâmica via Groovy.
+
+### 3. Sincronização de Schema e Carga de Dados (Obrigatório)
+
+Como o OFBiz utiliza um banco Derby em memória que pode manter estados corrompidos, sempre limpe o ambiente antes de carregar dados novos para garantir a sincronização do schema:
 
 ```bash
 ./gradlew cleanAll loadDefault
 
 ```
 
-### 3. Execução dos Testes Automatizados
+### 4. Execução dos Testes Automatizados
 
 ```bash
 ./gradlew "ofbiz --test component=khepri-orchestrator --test suitename=KhepriTests"
 
 ```
 
-### 4. Iniciar o Servidor
+### 5. Iniciar o Servidor
 
 ```bash
 ./gradlew ofbiz
 
 ```
+
+
