@@ -1,0 +1,47 @@
+.
+├── e2e
+│   ├── tsconfig.json
+│   └── vue.spec.ts
+├── env.d.ts
+├── eslint.config.ts
+├── index.html
+├── package.json
+├── playwright.config.ts
+├── public
+│   └── favicon.ico
+├── README.md
+├── src
+│   ├── App.vue
+│   ├── assets
+│   │   ├── base.css
+│   │   ├── logo.svg
+│   │   └── main.css
+│   ├── components
+│   │   ├── HelloWorld.vue
+│   │   ├── icons
+│   │   │   ├── IconCommunity.vue
+│   │   │   ├── IconDocumentation.vue
+│   │   │   ├── IconEcosystem.vue
+│   │   │   ├── IconSupport.vue
+│   │   │   └── IconTooling.vue
+│   │   ├── __tests__
+│   │   │   └── HelloWorld.spec.ts
+│   │   ├── TheWelcome.vue
+│   │   └── WelcomeItem.vue
+│   ├── main.ts
+│   ├── router
+│   │   └── index.ts
+│   ├── stores
+│   │   └── counter.ts
+│   └── views
+│       ├── AboutView.vue
+│       └── HomeView.vue
+├── tree.txt
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+├── tsconfig.vitest.json
+├── vite.config.ts
+└── vitest.config.ts
+
+11 directories, 34 files
