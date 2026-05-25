@@ -254,18 +254,17 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
     void testApproveWorkshopQuoteAndCreateOrder_Success() {
         long sfx = System.currentTimeMillis() % 100000
         String productId = "PROD_ORDER_" + sfx
-        
-        // Criar Produto com Preço para garantir carregamento no carrinho
+
         getDelegator().createOrStore(getDelegator().makeValue("Product", [
-                productId: productId, 
-                productTypeId: "FINISHED_GOOD", 
+                productId: productId,
+                productTypeId: "FINISHED_GOOD",
                 internalName: "Item de Pedido Teste"
         ]))
-        
+
         getDelegator().createOrStore(getDelegator().makeValue("ProductPrice", [
                 productId: productId,
                 productPriceTypeId: "DEFAULT_PRICE",
-                productPricePurposeId: "PURCHASE",
+                productPricePurposeId: "COMPONENT_PRICE", // Ajustado para ser compatível com venda
                 currencyUomId: "BRL",
                 productStoreGroupId: "_NA_",
                 fromDate: UtilDateTime.nowTimestamp(),
@@ -277,32 +276,26 @@ class WorkshopOrchestratorTests extends OFBizTestCase {
         Map quoteResp = getDispatcher().runSync("createWorkshopQuoteFromOS", [workEffortId: entryResp.workEffortId, userLogin: userLogin])
         String quoteId = quoteResp.quoteId
 
-        // Vincular Quote à ProductStore (necessário para cálculo de preço no addItem)
-        GenericValue quote = EntityQuery.use(getDelegator()).from("Quote").where("quoteId", quoteId).queryOne()
-        quote.set("productStoreId", TEST_PRODUCT_STORE)
-        quote.set("currencyUomId", "BRL")
-        quote.store()
+        getDispatcher().runSync("updateQuote", [quoteId: quoteId, productStoreId: TEST_PRODUCT_STORE, currencyUomId: "BRL", userLogin: userLogin])
 
-        // Adicionar item explicitamente via serviço (Status ainda é QUOTE_CREATED)
         Map addItemCtx = [
-                quoteId: quoteId, 
-                productId: productId, 
-                quantity: BigDecimal.ONE, 
+                quoteId: quoteId,
+                productId: productId,
+                quantity: BigDecimal.ONE,
                 userLogin: userLogin
         ]
         Map addItemResp = getDispatcher().runSync("addItemToWorkshopQuote", addItemCtx)
         assert ServiceUtil.isSuccess(addItemResp)
 
-        // AGORA Aprovar o orçamento para permitir a conversão
-        quote.set("statusId", "QUOTE_APPROVED")
-        quote.store()
+        getDispatcher().runSync("updateQuote", [quoteId: quoteId, statusId: "QUOTE_APPROVED", userLogin: userLogin])
 
-        // Executar conversão
         Map orderResp = getDispatcher().runSync("approveWorkshopQuoteAndCreateOrder", [quoteId: quoteId, userLogin: userLogin])
-        Debug.logInfo("DEBUG: orderResp = " + orderResp, "WorkshopOrchestratorTests")
-        
+
         assert ServiceUtil.isSuccess(orderResp)
         assert orderResp.orderId != null
+
+        GenericValue orderHeader = EntityQuery.use(getDelegator()).from("OrderHeader").where("orderId", orderResp.orderId).queryOne()
+        assert orderHeader != null
     }
 
     void testRequestVehicleGatePass_Success() {
