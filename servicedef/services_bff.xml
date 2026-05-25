@@ -54,10 +54,11 @@
              auth="true"
              export="true"
              action="POST">
-        <description>Adiciona peça ou serviço ao orçamento com validação técnica</description>
+        <description>Adiciona peça ao orçamento calculando o preço final com margem de lucro</description>
         <attribute name="quoteId" type="String" mode="IN" optional="false"/>
         <attribute name="productId" type="String" mode="IN" optional="false"/>
         <attribute name="quantity" type="BigDecimal" mode="IN" optional="false"/>
+        <attribute name="profitMargin" type="BigDecimal" mode="IN" optional="true"/>
         <attribute name="facilityId" type="String" mode="IN" optional="true"/>
         <attribute name="quoteItemSeqId" type="String" mode="OUT" optional="false"/>
     </service>

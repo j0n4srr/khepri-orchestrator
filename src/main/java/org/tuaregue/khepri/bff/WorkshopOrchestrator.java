@@ -184,6 +184,7 @@ public class WorkshopOrchestrator {
         String quoteId = (String) context.get("quoteId");
         String productId = (String) context.get("productId");
         BigDecimal quantity = (BigDecimal) context.get("quantity");
+        BigDecimal profitMargin = (BigDecimal) context.get("profitMargin");
         GenericValue userLogin = (GenericValue) context.get("userLogin");
 
         try {
@@ -211,7 +212,12 @@ public class WorkshopOrchestrator {
 
             Map<String, Object> priceRes = dctx.getDispatcher().runSync("calculateProductPrice", priceCtx);
             if (ServiceUtil.isError(priceRes)) return priceRes;
-            BigDecimal unitPrice = (BigDecimal) priceRes.get("price");
+            BigDecimal basePrice = (BigDecimal) priceRes.get("price");
+            BigDecimal unitPrice = basePrice;
+
+            if (profitMargin != null) {
+                unitPrice = basePrice.multiply(BigDecimal.ONE.add(profitMargin));
+            }
 
             Map<String, Object> itemCtx = new HashMap<>();
             itemCtx.put("quoteId", quoteId);
@@ -459,6 +465,7 @@ public class WorkshopOrchestrator {
             return ServiceUtil.returnError("Erro ao calcular sumario: " + e.getMessage());
         }
     }
+
     public static Map<String, Object> approveWorkshopQuoteAndCreateOrder(DispatchContext dctx, Map<String, ? extends Object> context) {
         Delegator delegator = dctx.getDelegator();
         LocalDispatcher dispatcher = dctx.getDispatcher();
@@ -471,16 +478,15 @@ public class WorkshopOrchestrator {
             return ServiceUtil.returnError(e.getMessage());
         }
 
-        Debug.logInfo("Iniciando aprovação e conversão de orçamento para quoteId: " + quoteId, MODULE);
-
         try {
             GenericValue quote = EntityQuery.use(delegator).from("Quote").where("quoteId", quoteId).queryOne();
             if (quote == null) {
-                return ServiceUtil.returnError("Orçamento não encontrado: " + quoteId);
+                return ServiceUtil.returnError("Orcamento nao encontrado.");
             }
 
-            if (!"QUOTE_APPROVED".equals(quote.getString("statusId"))) {
-                return ServiceUtil.returnError("O orçamento deve estar aprovado para conversão.");
+            String statusId = quote.getString("statusId");
+            if (!"QUOTE_APPROVED".equals(statusId) && !"QUOTE_ACCEPTED".equals(statusId)) {
+                return ServiceUtil.returnError("Orcamento bloqueado.");
             }
 
             String productStoreId = quote.getString("productStoreId");
@@ -498,24 +504,41 @@ public class WorkshopOrchestrator {
             cart.setOrderPartyId(quote.getString("partyId"));
             cart.setUserLogin(userLogin, dispatcher);
 
-            Debug.logInfo("DEBUG CART CONTEXT - StoreId: " + cart.getProductStoreId() +
-                    ", Currency: " + cart.getCurrency() +
-                    ", PartyId: " + cart.getPartyId(), MODULE);
+            cart.setQuoteId(quoteId);
+            cart.setPoNumber(quoteId);
 
-            Map<String, Object> loadRes = dispatcher.runSync("loadCartFromQuote", UtilMisc.toMap(
-                    "quoteId", quoteId,
-                    "shoppingCart", cart,
-                    "userLogin", userLogin
-            ));
+            List<GenericValue> quoteItems = EntityQuery.use(delegator).from("QuoteItem").where("quoteId", quoteId).queryList();
 
-            if (ServiceUtil.isError(loadRes)) {
-                Debug.logError("Erro ao carregar carrinho para quoteId " + quoteId + ": " + ServiceUtil.getErrorMessage(loadRes), MODULE);
-                return loadRes;
+            if (UtilValidate.isEmpty(quoteItems)) {
+                return ServiceUtil.returnError("Orçamento não possui itens.");
+            }
+
+            for (GenericValue item : quoteItems) {
+                BigDecimal unitPrice = item.getBigDecimal("quoteUnitPrice");
+                if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) == 0) {
+                    GenericValue productPrice = EntityQuery.use(delegator)
+                            .from("ProductPrice")
+                            .where("productId", item.getString("productId"), "productPriceTypeId", "DEFAULT_PRICE")
+                            .filterByDate()
+                            .queryFirst();
+                    if (productPrice != null) {
+                        unitPrice = productPrice.getBigDecimal("price");
+                    } else {
+                        throw new GenericServiceException("Preço base não configurado para o produto: " + item.getString("productId"));                    }
+                }
+
+                cart.addItemToEnd(
+                        item.getString("productId"),
+                        item.getBigDecimal("selectedAmount"),
+                        item.getBigDecimal("quantity"),
+                        unitPrice,
+                        null, null, null, null,
+                        dispatcher, Boolean.FALSE, Boolean.FALSE
+                );
             }
 
             if (cart.size() == 0) {
-                Debug.logError("Carrinho vazio após loadCartFromQuote para quoteId: " + quoteId, MODULE);
-                return ServiceUtil.returnError("Falha ao carregar itens do orçamento no carrinho.");
+                return ServiceUtil.returnError("Falha absoluta ao carregar itens.");
             }
 
             if (cart.getShipGroupSize() == 0) {
@@ -526,18 +549,16 @@ public class WorkshopOrchestrator {
             Map<String, Object> orderRes = helper.createOrder(userLogin, null, null, null, false, null, null);
 
             if (ServiceUtil.isError(orderRes)) {
-                Debug.logError("Erro na criação do pedido: " + ServiceUtil.getErrorMessage(orderRes), MODULE);
                 return orderRes;
             }
 
             Map<String, Object> result = ServiceUtil.returnSuccess();
             result.put("orderId", orderRes.get("orderId"));
-            Debug.logInfo("Pedido criado com sucesso: " + orderRes.get("orderId"), MODULE);
             return result;
 
         } catch (Exception e) {
-            Debug.logError(e, "Erro fatal em approveWorkshopQuoteAndCreateOrder para quoteId " + quoteId, MODULE);
-            return ServiceUtil.returnError("Erro ao processar conversão do orçamento: " + e.getMessage());
+            Debug.logError(e, "Erro fatal", MODULE);
+            return ServiceUtil.returnError(e.getMessage());
         }
     }
 
@@ -613,7 +634,7 @@ public class WorkshopOrchestrator {
             Map<String, Object> priceCtx = UtilMisc.toMap(
                     "productId", productId,
                     "productPriceTypeId", "DEFAULT_PRICE",
-                    "productPricePurposeId", "COMPONENT_PRICE", 
+                    "productPricePurposeId", "COMPONENT_PRICE",
                     "productStoreGroupId", "_NA_",
                     "currencyUomId", "BRL",
                     "price", price,
