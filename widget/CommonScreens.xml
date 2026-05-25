@@ -53,7 +53,7 @@ under the License.
             <actions>
             </actions>
             <widgets>
-                <decorator-screen name="main-decorator" location="${parameters.mainDecoratorLocation}">
+                <decorator-screen name="GlobalDecorator" location="component://common/widget/CommonScreens.xml">
                     <decorator-section name="body">
                         <section>
                             <condition>
